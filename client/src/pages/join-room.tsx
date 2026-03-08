@@ -2,17 +2,35 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { LogOut, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { socket } from "@/lib/socket";
+import { useLocation } from "wouter";
+import { useEffect } from "react";
 
 export default function JoinRoom() {
   const [roomCode, setRoomCode] = useState("");
   const [isHovered, setIsHovered] = useState(false);
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const handleJoinSuccess = (data: { roomCode: string }) => {
+      // In a real app we'd save this to context or local storage. For now we navigate.
+      // We pass the code in the URL so the waiting lobby can use it
+      localStorage.setItem("currentRoom", data.roomCode);
+      setLocation("/lobby");
+    };
+
+    socket.on("joined_successfully", handleJoinSuccess);
+
+    return () => {
+      socket.off("joined_successfully", handleJoinSuccess);
+    };
+  }, [setLocation]);
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     if (roomCode.length === 6) {
-      // Navigate to waiting lobby with room code
       console.log("Joining room:", roomCode);
-      // This would normally use wouter's useLocation to navigate
+      socket.emit("join_room", { roomCode });
     }
   };
 
@@ -24,14 +42,14 @@ export default function JoinRoom() {
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Header with Logout */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6 }}
         className="absolute top-6 right-6 z-20"
       >
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="flex items-center gap-2 border-white/20 hover:border-white/50 text-muted-foreground hover:text-white"
           data-testid="btn-logout"
         >
@@ -42,9 +60,9 @@ export default function JoinRoom() {
 
       {/* Main Content */}
       <main className="z-10 flex flex-col items-center justify-center max-w-2xl w-full px-6">
-        
+
         {/* Hero Text */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: "easeOut" }}
@@ -71,13 +89,12 @@ export default function JoinRoom() {
           <div className="space-y-6">
             {/* Code Input */}
             <div className="relative">
-              <div className={`glass-panel rounded-2xl p-8 border-2 transition-all duration-300 ${
-                isHovered 
-                  ? "neon-border-secondary border-secondary shadow-[0_0_25px_rgba(0,255,255,0.3)]" 
+              <div className={`glass-panel rounded-2xl p-8 border-2 transition-all duration-300 ${isHovered
+                  ? "neon-border-secondary border-secondary shadow-[0_0_25px_rgba(0,255,255,0.3)]"
                   : "border-white/10"
-              }`}
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
+                }`}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
               >
                 <label className="block text-sm uppercase font-display font-bold tracking-widest text-muted-foreground mb-4">
                   Room Code
@@ -91,17 +108,16 @@ export default function JoinRoom() {
                   className="w-full bg-transparent text-center text-6xl font-display font-black text-secondary tracking-[0.5em] focus:outline-none placeholder:text-gray-600 neon-text-secondary"
                   data-testid="input-room-code"
                 />
-                
+
                 {/* Character count indicators */}
                 <div className="flex gap-2 mt-6 justify-center">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <motion.div
                       key={i}
-                      className={`h-1 w-3 rounded-full transition-all ${
-                        i < roomCode.length 
-                          ? "bg-secondary shadow-[0_0_10px_rgba(0,255,255,0.6)]" 
+                      className={`h-1 w-3 rounded-full transition-all ${i < roomCode.length
+                          ? "bg-secondary shadow-[0_0_10px_rgba(0,255,255,0.6)]"
                           : "bg-white/10"
-                      }`}
+                        }`}
                       initial={{ scaleX: 0 }}
                       animate={{ scaleX: 1 }}
                     />
@@ -118,11 +134,10 @@ export default function JoinRoom() {
               <Button
                 type="submit"
                 disabled={roomCode.length !== 6}
-                className={`w-full h-16 rounded-xl font-display uppercase tracking-widest text-lg font-black group overflow-hidden relative transition-all ${
-                  roomCode.length === 6
+                className={`w-full h-16 rounded-xl font-display uppercase tracking-widest text-lg font-black group overflow-hidden relative transition-all ${roomCode.length === 6
                     ? "bg-white text-black hover:shadow-[0_0_25px_rgba(255,255,255,0.4)]"
                     : "bg-white/30 text-white/50 cursor-not-allowed"
-                }`}
+                  }`}
                 data-testid="btn-join-room"
               >
                 <span className="relative z-10 flex items-center justify-center gap-3">

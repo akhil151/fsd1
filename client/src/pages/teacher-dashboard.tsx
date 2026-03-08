@@ -1,63 +1,95 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Edit2, Trash2, Play, Users } from "lucide-react";
+import { Plus, Edit2, Trash2, Play, Users, Loader2 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { QuizCard } from "@/components/teacher/quiz-card";
 import { CreateQuizModal } from "@/components/teacher/create-quiz-modal";
 import { Button } from "@/components/ui/button";
-
-// Mock data for quizzes
-const mockQuizzes = [
-  {
-    id: "1",
-    title: "React Fundamentals",
-    questionCount: 12,
-    difficulty: "intermediate",
-    createdAt: new Date("2025-03-01"),
-    playCount: 234,
-  },
-  {
-    id: "2",
-    title: "TypeScript Basics",
-    questionCount: 10,
-    difficulty: "beginner",
-    createdAt: new Date("2025-02-28"),
-    playCount: 189,
-  },
-  {
-    id: "3",
-    title: "Advanced GraphQL",
-    questionCount: 15,
-    difficulty: "expert",
-    createdAt: new Date("2025-02-20"),
-    playCount: 456,
-  },
-  {
-    id: "4",
-    title: "Web Performance Optimization",
-    questionCount: 18,
-    difficulty: "advanced",
-    createdAt: new Date("2025-02-15"),
-    playCount: 123,
-  },
-];
+import { apiFetch } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
+import { socket } from "@/lib/socket";
 
 export default function TeacherDashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState("quizzes");
-  const [quizzes, setQuizzes] = useState(mockQuizzes);
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
-  const handleCreateQuiz = (quizData: any) => {
-    const newQuiz = {
-      id: String(quizzes.length + 1),
-      title: quizData.title,
-      questionCount: quizData.questions.length,
-      difficulty: "intermediate",
-      createdAt: new Date(),
-      playCount: 0,
+  useEffect(() => {
+    const handleRoomCreated = (data: { roomCode: string }) => {
+      setLocation(`/host-lobby/${data.roomCode}`);
     };
-    setQuizzes([newQuiz, ...quizzes]);
-    setShowCreateModal(false);
+
+    socket.on("room_created", handleRoomCreated);
+
+    return () => {
+      socket.off("room_created", handleRoomCreated);
+    };
+  }, [setLocation]);
+
+  const loadQuizzes = async () => {
+    try {
+      const data = await apiFetch<{ quizzes: any[] }>("/quizzes");
+      setQuizzes(data.quizzes);
+    } catch (err: any) {
+      toast({
+        title: "Failed to load quizzes",
+        description: err.message || "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "quizzes") {
+      loadQuizzes();
+    }
+  }, [activeTab]);
+
+  const handleCreateQuiz = async (quizData: any) => {
+    try {
+      await apiFetch("/quizzes", { data: quizData });
+      toast({
+        title: "Success",
+        description: "Quiz created successfully.",
+      });
+      loadQuizzes();
+      setShowCreateModal(false);
+    } catch (err: any) {
+      toast({
+        title: "Failed to create quiz",
+        description: err.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteQuiz = async (id: string) => {
+    try {
+      await apiFetch(`/quizzes/${id}`, { headers: {}, method: "DELETE" });
+      toast({
+        title: "Success",
+        description: "Quiz deleted successfully.",
+      });
+      loadQuizzes();
+    } catch (err: any) {
+      toast({
+        title: "Failed to delete quiz",
+        description: err.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLaunchQuiz = (id: string) => {
+    // Ideally map the quiz id to the hosted room state, for now we just create a room
+    console.log("Teacher is hosting room for quiz:", id);
+    socket.emit("host_room", { quizId: id });
   };
 
   return (
@@ -67,9 +99,9 @@ export default function TeacherDashboard() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto relative">
         <div className="absolute inset-0 grid-bg z-0 pointer-events-none" />
-        
+
         {/* Header */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -81,7 +113,7 @@ export default function TeacherDashboard() {
               <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold">Instructor Portal</p>
             </div>
             {activeTab === "quizzes" && (
-              <Button 
+              <Button
                 onClick={() => setShowCreateModal(true)}
                 className="bg-gradient-to-r from-primary to-accent hover:shadow-[0_0_20px_rgba(255,0,128,0.5)] text-white rounded-xl h-12 px-6 font-display uppercase tracking-widest font-bold group"
                 data-testid="btn-create-quiz"
@@ -125,18 +157,44 @@ export default function TeacherDashboard() {
               {/* Quizzes Grid */}
               <div>
                 <h2 className="text-2xl font-display font-bold mb-6 text-white">YOUR QUIZZES</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {quizzes.map((quiz, index) => (
-                    <motion.div
-                      key={quiz.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 + index * 0.05 }}
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <Loader2 className="w-10 h-10 text-primary animate-spin opacity-50" />
+                  </div>
+                ) : quizzes.length === 0 ? (
+                  <div className="text-center py-20 glass-panel rounded-xl border border-white/10">
+                    <p className="text-muted-foreground text-lg mb-4">You haven't created any quizzes yet.</p>
+                    <Button
+                      onClick={() => setShowCreateModal(true)}
+                      className="bg-white text-black hover:bg-gray-200"
                     >
-                      <QuizCard quiz={quiz} />
-                    </motion.div>
-                  ))}
-                </div>
+                      <Plus className="w-4 h-4 mr-2" /> Create First Quiz
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {quizzes.map((quiz, index) => {
+                      const quizProps = {
+                        id: quiz._id || quiz.id,
+                        title: quiz.title,
+                        questionCount: quiz.questions?.length || 0,
+                        difficulty: "intermediate", // default until model provides it or derived
+                        createdAt: new Date(quiz.createdAt),
+                        playCount: quiz.playCount || 0,
+                      };
+                      return (
+                        <motion.div
+                          key={quizProps.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.2 + index * 0.05 }}
+                        >
+                          <QuizCard quiz={quizProps} onDelete={handleDeleteQuiz} onLaunch={handleLaunchQuiz} />
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -167,7 +225,7 @@ export default function TeacherDashboard() {
 
       {/* Create Quiz Modal */}
       {showCreateModal && (
-        <CreateQuizModal 
+        <CreateQuizModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onSubmit={handleCreateQuiz}

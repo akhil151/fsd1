@@ -10,9 +10,11 @@ interface QuizCardProps {
     createdAt: Date;
     playCount: number;
   };
+  onDelete?: (id: string) => void;
+  onLaunch?: (id: string) => void;
 }
 
-export function QuizCard({ quiz }: QuizCardProps) {
+export function QuizCard({ quiz, onDelete, onLaunch }: QuizCardProps) {
   const difficultyColors = {
     beginner: "text-green-400",
     intermediate: "text-yellow-400",
@@ -33,13 +35,13 @@ export function QuizCard({ quiz }: QuizCardProps) {
       className="group h-full"
     >
       <div className="glass-panel rounded-xl p-6 h-full flex flex-col border border-white/10 hover:border-primary/50 transition-all duration-300 hover:shadow-[0_15px_40px_rgba(255,0,128,0.2)]">
-        
+
         {/* Header */}
         <div className="mb-4 flex-1">
           <h3 className="text-xl font-display font-black text-white mb-3 line-clamp-2 group-hover:text-primary transition-colors">
             {quiz.title}
           </h3>
-          
+
           {/* Difficulty Badge */}
           <div className={`inline-block px-3 py-1 rounded-full border text-xs font-display font-bold uppercase tracking-wider ${difficultyBgColors[quiz.difficulty as keyof typeof difficultyBgColors]} ${difficultyColors[quiz.difficulty as keyof typeof difficultyColors]}`}>
             {quiz.difficulty}
@@ -63,13 +65,14 @@ export function QuizCard({ quiz }: QuizCardProps) {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => onLaunch?.(quiz.id)}
             className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-accent text-white py-2.5 rounded-lg font-display font-bold uppercase tracking-wider text-xs hover:shadow-[0_0_15px_rgba(255,0,128,0.4)] transition-all"
             data-testid={`btn-play-quiz-${quiz.id}`}
           >
             <Play className="w-4 h-4" />
             Launch
           </motion.button>
-          
+
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -82,6 +85,7 @@ export function QuizCard({ quiz }: QuizCardProps) {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => onDelete?.(quiz.id)}
             className="px-3 py-2.5 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/10 transition-all"
             data-testid={`btn-delete-quiz-${quiz.id}`}
           >

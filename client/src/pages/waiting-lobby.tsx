@@ -3,27 +3,35 @@ import { motion } from "framer-motion";
 import { LogOut, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StudentAvatar } from "@/components/student/student-avatar";
-
-// Mock data for students joining
-const mockStudents = [
-  { id: "1", name: "Alex Chen", avatar: "AC" },
-  { id: "2", name: "Jordan Smith", avatar: "JS" },
-  { id: "3", name: "Casey Lee", avatar: "CL" },
-  { id: "4", name: "Morgan Davis", avatar: "MD" },
-];
+import { socket } from "@/lib/socket";
+import { useLocation } from "wouter";
 
 export default function WaitingLobby() {
-  const [students, setStudents] = useState([mockStudents[0]]);
-  const [isHost, setIsHost] = useState(true);
+  const [students, setStudents] = useState<any[]>([]);
+  const isHost = false;
+  const [, setLocation] = useLocation();
+  const roomCode = localStorage.getItem("currentRoom") || "UNKNOWN";
 
-  // Simulate students joining
+  // Listen for players joining
   useEffect(() => {
-    const timers = mockStudents.slice(1).map((student, index) => 
-      setTimeout(() => {
-        setStudents(prev => [...prev, student]);
-      }, (index + 1) * 1500)
-    );
-    return () => timers.forEach(clearTimeout);
+    // If we have a stored room code, we could also emit a rejoin or just join the socket room again
+    // But since join_room was already emitted on the JoinRoom page, we are in the room.
+
+    // Add ourselves to the list immediately if we want, but the server broadcasts player_joined to everyone 
+    // including the sender, so we should receive it.
+
+    const handlePlayerJoined = (data: { student: any }) => {
+      setStudents(prev => {
+        if (prev.find(s => s.id === data.student.id)) return prev;
+        return [...prev, data.student];
+      });
+    };
+
+    socket.on("player_joined", handlePlayerJoined);
+
+    return () => {
+      socket.off("player_joined", handlePlayerJoined);
+    };
   }, []);
 
   return (
@@ -34,19 +42,20 @@ export default function WaitingLobby() {
       <div className="absolute bottom-1/3 left-0 w-96 h-96 bg-secondary/20 rounded-full blur-[120px] pointer-events-none animate-pulse" style={{ animationDelay: "1s" }} />
 
       {/* Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
         className="relative z-10 px-8 py-6 border-b border-white/10 backdrop-blur-sm bg-background/50 flex justify-between items-center"
       >
         <div>
-          <h1 className="text-3xl font-display font-black text-white">ROOM: XYZ123</h1>
+          <h1 className="text-3xl font-display font-black text-white">ROOM: {roomCode}</h1>
           <p className="text-xs text-secondary uppercase tracking-widest font-semibold mt-1">Waiting for Host...</p>
         </div>
         {!isHost && (
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
+            onClick={() => setLocation("/")}
             className="flex items-center gap-2 border-white/20 hover:border-white/50"
             data-testid="btn-exit-lobby"
           >
@@ -58,9 +67,9 @@ export default function WaitingLobby() {
 
       {/* Main Content */}
       <div className="flex-1 relative z-10 flex flex-col items-center justify-center px-8 py-12">
-        
+
         {/* Status Animation */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -85,8 +94,8 @@ export default function WaitingLobby() {
               AWAITING SIGNAL
             </span>
           </h2>
-          
-          <motion.p 
+
+          <motion.p
             animate={{ opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 1.5, repeat: Infinity }}
             className="text-lg text-muted-foreground font-medium"
@@ -99,16 +108,16 @@ export default function WaitingLobby() {
         <div className="w-full max-w-2xl">
           <div className="mb-8">
             <p className="text-sm uppercase font-display font-bold tracking-widest text-muted-foreground mb-4">
-              Players Assembled ({students.length}/{mockStudents.length})
+              Players Assembled ({students.length}/4)
             </p>
-            
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {students.map((student, index) => (
                 <motion.div
                   key={student.id}
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ 
+                  transition={{
                     delay: index * 0.15,
                     type: "spring",
                     stiffness: 100,
@@ -120,7 +129,7 @@ export default function WaitingLobby() {
               ))}
 
               {/* Empty slots */}
-              {Array.from({ length: mockStudents.length - students.length }).map((_, index) => (
+              {Array.from({ length: Math.max(0, 4 - students.length) }).map((_, index) => (
                 <motion.div
                   key={`empty-${index}`}
                   initial={{ opacity: 0 }}
@@ -153,7 +162,7 @@ export default function WaitingLobby() {
               Launch Quiz
             </Button>
             <p className="text-center text-xs text-muted-foreground mt-4">
-              {students.length} of {mockStudents.length} players ready
+              {students.length} of 4 players ready
             </p>
           </motion.div>
         )}

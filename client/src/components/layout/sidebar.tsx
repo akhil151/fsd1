@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { BarChart3, Play, Settings, LogOut, Grid3X3 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 
 interface SidebarProps {
   activeTab: string;
@@ -7,6 +9,14 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+  const { logout } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const handleLogout = () => {
+    logout();
+    setLocation("/");
+  };
+
   const tabs = [
     { id: "quizzes", label: "My Quizzes", icon: Grid3X3 },
     { id: "sessions", label: "Live Sessions", icon: Play },
@@ -14,7 +24,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   ];
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ x: -100, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5 }}
@@ -26,7 +36,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       {/* Logo Section */}
       <div className="px-6 py-8 border-b border-white/10">
         <h2 className="text-2xl font-display font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-          NEON<br/>QUIZ
+          NEON<br />QUIZ
         </h2>
         <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mt-2">Teacher Portal</p>
       </div>
@@ -41,11 +51,10 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             <motion.button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-display font-bold uppercase tracking-wider text-sm transition-all relative group/btn ${
-                isActive
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-display font-bold uppercase tracking-wider text-sm transition-all relative group/btn ${isActive
                   ? "bg-white/10 text-white shadow-[0_0_15px_rgba(255,0,128,0.3)]"
                   : "text-muted-foreground hover:text-white hover:bg-white/5"
-              }`}
+                }`}
               whileHover={{ x: 4 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -71,7 +80,9 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           <Settings className="w-5 h-5" />
           Settings
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 transition-all text-sm font-semibold uppercase tracking-widest"
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 transition-all text-sm font-semibold uppercase tracking-widest"
           data-testid="btn-logout-sidebar"
         >
           <LogOut className="w-5 h-5" />
