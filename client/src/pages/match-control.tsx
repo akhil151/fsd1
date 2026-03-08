@@ -74,7 +74,12 @@ export default function MatchControl() {
     };
 
     const handleEndQuiz = () => {
-        setLocation("/dashboard");
+        const quizId = localStorage.getItem("currentQuizId");
+        if (quizId) {
+            setLocation(`/analytics/${quizId}`);
+        } else {
+            setLocation("/dashboard");
+        }
     };
 
     if (isFinished) {

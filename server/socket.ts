@@ -2,6 +2,7 @@ import { Server as HttpServer } from "http";
 import { Server, Socket } from "socket.io";
 import { log } from "./index";
 import Quiz, { IQuiz, IQuestion } from "./models/Quiz";
+import MatchResult from "./models/MatchResult";
 
 // In-Memory Game State
 interface PlayerState {
@@ -220,7 +221,7 @@ export function setupWebSocket(httpServer: HttpServer) {
             }
         });
 
-        socket.on("next_question", (data: { roomCode: string }) => {
+        socket.on("next_question", async (data: { roomCode: string }) => {
             const gameState = activeRooms.get(data.roomCode);
             if (gameState && gameState.hostId === socket.id && gameState.status === "leaderboard") {
                 gameState.currentQuestionIndex++;
@@ -228,11 +229,31 @@ export function setupWebSocket(httpServer: HttpServer) {
                     broadcastQuestion(data.roomCode);
                 } else {
                     gameState.status = "finished";
+
+                    const finalLeaderboard = Array.from(gameState.players.values())
+                        .map(p => ({ id: p.id, name: p.name, avatar: p.avatar, score: p.score }))
+                        .sort((a, b) => b.score - a.score);
+
+                    const winner = finalLeaderboard[0] || null;
+
+                    try {
+                        await MatchResult.create({
+                            quizId: gameState.quizId,
+                            roomCode: gameState.quizCode,
+                            players: finalLeaderboard,
+                            winner,
+                        });
+                        log(`Match result saved for room ${gameState.quizCode}`, "socket.io");
+                    } catch (err) {
+                        log(`Failed to save match result for room ${gameState.quizCode}: ${err}`, "socket.io");
+                    }
+
                     io.to(data.roomCode).emit("quiz_finished", {
-                        finalLeaderboard: Array.from(gameState.players.values())
-                            .map(p => ({ id: p.id, name: p.name, score: p.score }))
-                            .sort((a, b) => b.score - a.score)
+                        finalLeaderboard,
                     });
+
+                    // Optionally clean up finished room from memory
+                    activeRooms.delete(data.roomCode);
                 }
             }
         });

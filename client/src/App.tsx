@@ -11,6 +11,9 @@ import JoinRoom from "@/pages/join-room";
 import WaitLobby from "@/pages/waiting-lobby";
 import HostLobby from "@/pages/host-lobby";
 import MatchControl from "@/pages/match-control";
+import Arena from "@/pages/arena";
+import PostMatchStudent from "@/pages/post-match-student";
+import MatchAnalytics from "@/pages/match-analytics";
 
 function Router() {
   return (
@@ -21,6 +24,9 @@ function Router() {
       <Route path="/lobby" component={WaitLobby} />
       <Route path="/host-lobby/:code" component={HostLobby} />
       <Route path="/match-control/:code" component={MatchControl} />
+      <Route path="/arena" component={Arena} />
+      <Route path="/post-match" component={PostMatchStudent} />
+      <Route path="/analytics/:quizId" component={MatchAnalytics} />
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>

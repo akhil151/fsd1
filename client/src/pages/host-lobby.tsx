@@ -16,21 +16,17 @@ export default function HostLobby() {
             setStudents(prev => [...prev, data.student]);
         };
 
-        const handleQuestionActive = () => {
-            setLocation(`/match-control/${roomCode}`);
-        };
-
         socket.on("player_joined", handlePlayerJoined);
-        socket.on("question_active", handleQuestionActive);
 
         return () => {
             socket.off("player_joined", handlePlayerJoined);
-            socket.off("question_active", handleQuestionActive);
         };
-    }, [roomCode, setLocation]);
+    }, []);
 
     const handleStartQuiz = () => {
         socket.emit("start_quiz", { roomCode });
+        // Move host into Match Control immediately so the first question broadcast is received there.
+        setLocation(`/match-control/${roomCode}`);
     };
 
     const handleEndSession = () => {

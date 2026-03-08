@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { parseBulkQuestions } from "@/lib/parseBulkQuestions";
 
 interface Question {
   id: string;
@@ -29,6 +30,9 @@ export function CreateQuizModal({ isOpen, onClose, onSubmit }: CreateQuizModalPr
     },
   ]);
   const [currentStep, setCurrentStep] = useState(0);
+  const [mode, setMode] = useState<"manual" | "bulk">("manual");
+  const [bulkText, setBulkText] = useState("");
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   const handleAddQuestion = () => {
     setQuestions([
@@ -99,7 +103,7 @@ export function CreateQuizModal({ isOpen, onClose, onSubmit }: CreateQuizModalPr
 
               {/* Content */}
               <div className="p-8 space-y-8">
-                
+
                 {/* Step 1: Quiz Title */}
                 {currentStep === 0 && (
                   <motion.div
@@ -130,7 +134,112 @@ export function CreateQuizModal({ isOpen, onClose, onSubmit }: CreateQuizModalPr
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-6"
                   >
-                    {questions.map((question, qIndex) => (
+                    {/* Mode Toggle */}
+                    <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl p-1">
+                      <button
+                        type="button"
+                        onClick={() => setMode("manual")}
+                        className={`flex-1 py-2 rounded-lg text-xs font-display uppercase tracking-[0.3em] transition-colors ${
+                          mode === "manual"
+                            ? "bg-white text-black"
+                            : "text-muted-foreground hover:text-white"
+                        }`}
+                      >
+                        Manual Entry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode("bulk")}
+                        className={`flex-1 py-2 rounded-lg text-xs font-display uppercase tracking-[0.3em] flex items-center justify-center gap-2 transition-colors ${
+                          mode === "bulk"
+                            ? "bg-secondary text-black"
+                            : "text-muted-foreground hover:text-white"
+                        }`}
+                      >
+                        <Zap className="w-3 h-3" />
+                        Bulk Paste
+                      </button>
+                    </div>
+
+                    {mode === "bulk" && (
+                      <div className="space-y-4">
+                        {/* Format Instructions */}
+                        <div className="glass-panel rounded-xl border border-white/15 p-4 bg-black/40">
+                          <p className="text-xs uppercase tracking-[0.3em] text-secondary font-display mb-2">
+                            Format Instructions
+                          </p>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Paste questions using this pattern (blank line between questions recommended):
+                          </p>
+                          <pre className="text-[11px] leading-relaxed bg-black/40 border border-white/10 rounded-lg p-3 font-mono text-white/80 overflow-x-auto">
+{`Q: What is 2 + 2?
+A) 3
+B) 4
+C) 5
+D) 6
+Answer: B
+
+Q: Node.js runs on which engine?
+A) SpiderMonkey
+B) Chakra
+C) V8
+D) Java VM
+Answer: C`}
+                          </pre>
+                        </div>
+
+                        {/* Bulk Textarea */}
+                        <textarea
+                          value={bulkText}
+                          onChange={(e) => {
+                            setBulkText(e.target.value);
+                            setBulkError(null);
+                          }}
+                          placeholder="Paste your formatted questions here..."
+                          rows={12}
+                          className="w-full bg-black/60 border border-secondary/40 rounded-2xl p-4 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-secondary focus:shadow-[0_0_25px_rgba(0,255,255,0.4)] transition-all font-mono"
+                        />
+
+                        {bulkError && (
+                          <div className="text-xs text-destructive whitespace-pre-line border border-destructive/40 bg-destructive/10 rounded-lg p-3">
+                            {bulkError}
+                          </div>
+                        )}
+
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              const parsed = parseBulkQuestions(bulkText);
+                              if (!parsed.length) {
+                                setBulkError("No questions detected. Please check the format.");
+                                return;
+                              }
+                              setBulkError(null);
+
+                              const mapped: Question[] = parsed.map((q, idx) => ({
+                                id: String(idx + 1),
+                                text: q.text,
+                                options: q.options,
+                                correctAnswer: q.correctAnswer,
+                                difficulty: "intermediate",
+                              }));
+
+                              setQuestions(mapped);
+                              setMode("manual");
+                            } catch (err: any) {
+                              setBulkError(err?.message || "Failed to parse questions.");
+                            }
+                          }}
+                          className="w-full bg-gradient-to-r from-primary via-accent to-secondary text-white font-display uppercase tracking-[0.3em] text-xs h-11 hover:shadow-[0_0_25px_rgba(255,0,128,0.5)]"
+                        >
+                          Generate Questions
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Manual Entry Builder */}
+                    {mode === "manual" && questions.map((question, qIndex) => (
                       <motion.div
                         key={question.id}
                         initial={{ opacity: 0, y: 10 }}

@@ -27,12 +27,20 @@ export default function WaitingLobby() {
       });
     };
 
+    const handleQuestionActive = (data: any) => {
+      // Persist the first question payload so the Arena view can hydrate immediately.
+      localStorage.setItem("currentQuestionPayload", JSON.stringify(data));
+      setLocation("/arena");
+    };
+
     socket.on("player_joined", handlePlayerJoined);
+    socket.on("question_active", handleQuestionActive);
 
     return () => {
       socket.off("player_joined", handlePlayerJoined);
+      socket.off("question_active", handleQuestionActive);
     };
-  }, []);
+  }, [setLocation]);
 
   return (
     <div className="min-h-screen relative overflow-hidden flex flex-col">

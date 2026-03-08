@@ -89,6 +89,7 @@ export default function TeacherDashboard() {
   const handleLaunchQuiz = (id: string) => {
     // Ideally map the quiz id to the hosted room state, for now we just create a room
     console.log("Teacher is hosting room for quiz:", id);
+    localStorage.setItem("currentQuizId", id);
     socket.emit("host_room", { quizId: id });
   };
 
