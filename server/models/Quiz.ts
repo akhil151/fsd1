@@ -4,7 +4,7 @@ export interface IQuestion {
     text: string;
     options: string[];
     correctAnswer: number; // index into options
-    difficulty: "easy" | "medium" | "hard";
+    difficulty: "easy" | "medium" | "hard" | "beginner" | "intermediate" | "advanced" | "expert";
 }
 
 export interface IQuiz extends Document {
@@ -26,8 +26,8 @@ const QuestionSchema = new Schema<IQuestion>({
     correctAnswer: { type: Number, required: true, min: 0 },
     difficulty: {
         type: String,
-        enum: ["easy", "medium", "hard"],
-        default: "medium",
+        enum: ["easy", "medium", "hard", "beginner", "intermediate", "advanced", "expert"],
+        default: "intermediate",
     },
 });
 

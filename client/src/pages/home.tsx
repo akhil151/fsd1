@@ -12,6 +12,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [role, setRole] = useState<"student" | "teacher">("teacher");
 
   const { login, register, isAuthenticated, user } = useAuth();
   const { toast } = useToast();
@@ -37,13 +38,22 @@ export default function Home() {
           title: "Login Successful",
           description: "Welcome back to the Neon Quiz Arena!",
         });
-        // Location will automatically change from the re-render where isAuthenticated is true
       } else {
-        await register({ email, password, name, role: "teacher" }); // Defaulting signups here to teacher for beta testing
+        await register({ email, password, name, role });
         toast({
           title: "Registration Successful",
-          description: "Your instructor profile has been created.",
+          description: role === "teacher"
+            ? "Your instructor profile has been created."
+            : "Your player profile has been created.",
         });
+      }
+
+      // After successful auth, route based on role
+      const targetRole = isLogin ? (user?.role || "student") : role;
+      if (targetRole === "teacher") {
+        setLocation("/dashboard");
+      } else {
+        setLocation("/join");
       }
     } catch (err: any) {
       toast({
@@ -156,19 +166,55 @@ export default function Home() {
                 >
                   <div className="space-y-4">
                     {!isLogin && (
-                      <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="PLAYER TAG"
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          required={!isLogin}
-                          disabled={isSubmitting}
-                          className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-gray-500 focus:outline-none focus:neon-border-secondary focus:border-secondary transition-all font-sans text-lg"
-                          data-testid="input-username"
-                        />
-                      </div>
+                      <>
+                        {/* Role Toggle */}
+                        <div className="flex items-center justify-between bg-black/40 border border-white/10 rounded-xl p-2">
+                          <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground font-display">
+                            Choose Your Role
+                          </span>
+                          <div className="inline-flex bg-black/60 rounded-lg p-1 border border-white/10">
+                            <button
+                              type="button"
+                              onClick={() => setRole("student")}
+                              className={`px-3 py-1 rounded-md text-[10px] font-display uppercase tracking-[0.25em] transition-all ${
+                                role === "student"
+                                  ? "bg-secondary text-black shadow-[0_0_12px_rgba(0,255,255,0.6)]"
+                                  : "text-muted-foreground hover:text-white"
+                              }`}
+                              disabled={isSubmitting}
+                            >
+                              Student
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRole("teacher")}
+                              className={`px-3 py-1 rounded-md text-[10px] font-display uppercase tracking-[0.25em] transition-all ${
+                                role === "teacher"
+                                  ? "bg-primary text-black shadow-[0_0_12px_rgba(255,0,128,0.6)]"
+                                  : "text-muted-foreground hover:text-white"
+                              }`}
+                              disabled={isSubmitting}
+                            >
+                              Teacher
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Player Tag */}
+                        <div className="relative">
+                          <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="PLAYER TAG"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required={!isLogin}
+                            disabled={isSubmitting}
+                            className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-gray-500 focus:outline-none focus:neon-border-secondary focus:border-secondary transition-all font-sans text-lg"
+                            data-testid="input-username"
+                          />
+                        </div>
+                      </>
                     )}
 
                     <div className="relative">
