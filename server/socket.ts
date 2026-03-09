@@ -125,7 +125,7 @@ export function setupWebSocket(httpServer: HttpServer) {
             }
 
             // If this teacher already has an active room, close it to prevent ghost rooms
-            for (const [code, state] of activeRooms.entries()) {
+            activeRooms.forEach((state, code) => {
                 if (state.hostUserId === String(user._id)) {
                     if (state.timerInterval) {
                         clearInterval(state.timerInterval);
@@ -133,7 +133,7 @@ export function setupWebSocket(httpServer: HttpServer) {
                     activeRooms.delete(code);
                     io.to(code).emit("room_closed", { reason: "host_launched_new_room" });
                 }
-            }
+            });
 
             // Generate 6-character alphanumeric code
             const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -294,7 +294,7 @@ export function setupWebSocket(httpServer: HttpServer) {
 
             // Compute Leaderboard
             const leaderboard = Array.from(gameState.players.values()).map(p => ({
-                id: p.id,
+                id: p.userId,
                 name: p.name,
                 avatar: p.avatar,
                 score: p.score
