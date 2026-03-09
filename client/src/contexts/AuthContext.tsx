@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { apiFetch, setAuthToken, clearAuthToken, getAuthToken } from "@/lib/api";
+import { socket } from "@/lib/socket";
 
 export interface User {
     id: string;
@@ -46,6 +47,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         setAuthToken(data.token);
         setUser(data.user);
+
+        // Attach JWT to socket and reconnect so real-time events are authenticated
+        (socket as any).auth = {
+            ...(socket as any).auth,
+            token: data.token,
+        };
+        if (socket.disconnected) {
+            socket.connect();
+        }
     };
 
     const register = async (userData: any) => {
@@ -54,11 +64,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         setAuthToken(data.token);
         setUser(data.user);
+
+        (socket as any).auth = {
+            ...(socket as any).auth,
+            token: data.token,
+        };
+        if (socket.disconnected) {
+            socket.connect();
+        }
     };
 
     const logout = () => {
         clearAuthToken();
         setUser(null);
+        // Drop authenticated socket connection on logout
+        try {
+            socket.disconnect();
+            (socket as any).auth = {
+                ...(socket as any).auth,
+                token: undefined,
+            };
+        } catch {
+            // ignore socket errors on logout
+        }
     };
 
     return (

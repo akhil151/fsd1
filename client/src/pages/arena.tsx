@@ -106,11 +106,31 @@ export default function Arena() {
       }, 1200);
     };
 
+    const handleSyncState = (data: {
+      status: string;
+      currentQuestionIndex: number;
+      totalQuestions: number;
+      timerSeconds: number;
+      question: QuestionData | null;
+    }) => {
+      if (data.question) {
+        applyQuestionActive({
+          currentQuestionIndex: data.currentQuestionIndex,
+          totalQuestions: data.totalQuestions,
+          question: data.question,
+        });
+        setTimeLeft(data.timerSeconds);
+        setMaxTime(Math.max(QUESTION_TIME_SECONDS, data.timerSeconds));
+        setIsTimeUp(data.status === "leaderboard" || data.status === "finished");
+      }
+    };
+
     socket.on("question_active", handleQuestionActive);
     socket.on("timer_tick", handleTimerTick);
     socket.on("time_up", handleTimeUp);
     socket.on("leaderboard_update", handleLeaderboardUpdate);
     socket.on("quiz_finished", handleQuizFinished);
+    socket.on("sync_state", handleSyncState);
 
     return () => {
       socket.off("question_active", handleQuestionActive);
@@ -118,6 +138,7 @@ export default function Arena() {
       socket.off("time_up", handleTimeUp);
       socket.off("leaderboard_update", handleLeaderboardUpdate);
       socket.off("quiz_finished", handleQuizFinished);
+      socket.off("sync_state", handleSyncState);
     };
   }, []);
 

@@ -5,8 +5,12 @@ export async function connectDB(): Promise<void> {
   const mongoUri = process.env.MONGO_URI;
 
   if (!mongoUri || mongoUri.includes("127.0.0.1") || mongoUri.includes("localhost")) {
-    log("❌ MongoDB connection failed: MONGO_URI must point to an Atlas cluster, local fallback is forbidden.", "mongoose");
-    process.exit(1);
+    log(
+      "❌ MongoDB connection failed: MONGO_URI must point to an Atlas cluster, local fallback is forbidden.",
+      "mongoose"
+    );
+    // Fail gracefully without crashing the entire Node process
+    return;
   }
 
   try {
@@ -14,7 +18,7 @@ export async function connectDB(): Promise<void> {
     log("MongoDB Cluster connected successfully for Akhilesh M P's Quiz Platform!", "mongoose");
   } catch (err) {
     log(`❌ MongoDB connection failed: ${(err as Error).message}`, "mongoose");
-    process.exit(1);
+    // Keep the server running; APIs that depend on Mongo will respond with their own errors
   }
 
   mongoose.connection.on("disconnected", () => {

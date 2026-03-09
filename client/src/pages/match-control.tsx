@@ -54,11 +54,28 @@ export default function MatchControl() {
             setIsFinished(true);
         };
 
+        const handleSyncState = (data: {
+            status: string;
+            currentQuestionIndex: number;
+            totalQuestions: number;
+            timerSeconds: number;
+            question: QuestionData | null;
+        }) => {
+            if (data.question) {
+                setActiveQuestion(data.question);
+                setQuestionIndex(data.currentQuestionIndex);
+                setTotalQuestions(data.totalQuestions);
+                setTimeLeft(data.timerSeconds);
+                setIsTimeUp(data.status === "leaderboard" || data.status === "finished");
+            }
+        };
+
         socket.on("question_active", handleQuestionActive);
         socket.on("timer_tick", handleTimerTick);
         socket.on("time_up", handleTimeUp);
         socket.on("player_answered", handlePlayerAnswered);
         socket.on("quiz_finished", handleQuizFinished);
+        socket.on("sync_state", handleSyncState);
 
         return () => {
             socket.off("question_active", handleQuestionActive);
@@ -66,6 +83,7 @@ export default function MatchControl() {
             socket.off("time_up", handleTimeUp);
             socket.off("player_answered", handlePlayerAnswered);
             socket.off("quiz_finished", handleQuizFinished);
+            socket.off("sync_state", handleSyncState);
         };
     }, []);
 

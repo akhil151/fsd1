@@ -9,9 +9,15 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   // Enable CORS for the Vite dev server
+  const allowedOrigins = [
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+    ...(process.env.CLIENT_ORIGIN ? [process.env.CLIENT_ORIGIN] : []),
+  ];
+
   app.use(
     cors({
-      origin: ["http://localhost:5000", "http://127.0.0.1:5000"],
+      origin: allowedOrigins,
       credentials: true,
     })
   );
