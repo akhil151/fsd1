@@ -33,12 +33,22 @@ export default function WaitingLobby() {
       setLocation("/arena");
     };
 
+    const handleRoomClosed = (data: { reason: string }) => {
+      console.log("Room closed:", data.reason);
+      // Clean up and redirect to join page
+      localStorage.removeItem("currentRoom");
+      localStorage.removeItem("currentQuestionPayload");
+      setLocation("/join");
+    };
+
     socket.on("player_joined", handlePlayerJoined);
     socket.on("question_active", handleQuestionActive);
+    socket.on("room_closed", handleRoomClosed);
 
     return () => {
       socket.off("player_joined", handlePlayerJoined);
       socket.off("question_active", handleQuestionActive);
+      socket.off("room_closed", handleRoomClosed);
     };
   }, [setLocation]);
 
@@ -63,7 +73,12 @@ export default function WaitingLobby() {
         {!isHost && (
           <Button
             variant="outline"
-            onClick={() => setLocation("/")}
+            onClick={() => {
+              // Clean up localStorage when leaving
+              localStorage.removeItem("currentRoom");
+              localStorage.removeItem("currentQuestionPayload");
+              setLocation("/");
+            }}
             className="flex items-center gap-2 border-white/20 hover:border-white/50"
             data-testid="btn-exit-lobby"
           >

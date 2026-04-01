@@ -18,4 +18,38 @@ export const socket = io(SOCKET_URL, {
     auth: {
         token: initialToken || undefined,
     },
+    // Add connection timeout and retry settings
+    timeout: 10000,
+    retries: 3,
+});
+
+// Handle connection errors and cleanup
+socket.on("connect_error", (error) => {
+    console.warn("Socket connection error:", error.message);
+    // Clear potentially stale room data on connection errors
+    if (error.message.includes("Authentication")) {
+        localStorage.removeItem("currentRoom");
+        localStorage.removeItem("currentQuestionPayload");
+    }
+});
+
+// Clean up localStorage when disconnected
+socket.on("disconnect", (reason) => {
+    console.log("Socket disconnected:", reason);
+    // Only clear room data if it's a permanent disconnect
+    if (reason === "io server disconnect" || reason === "io client disconnect") {
+        localStorage.removeItem("currentRoom");
+        localStorage.removeItem("currentQuestionPayload");
+    }
+});
+
+// Handle room closure events
+socket.on("room_closed", (data) => {
+    console.log("Room closed:", data.reason);
+    // Clean up all room-related data
+    localStorage.removeItem("currentRoom");
+    localStorage.removeItem("currentQuestionPayload");
+    localStorage.removeItem("lastMatchResult");
+    localStorage.removeItem("currentQuizQuestionCount");
+    localStorage.removeItem("currentQuizCorrectCount");
 });

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BarChart3, Play, Settings, LogOut, Grid3X3 } from "lucide-react";
+import { BarChart3, Play, LogOut, Grid3X3 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 
@@ -73,13 +73,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       </nav>
 
       {/* Bottom Section */}
-      <div className="px-4 py-6 border-t border-white/10 space-y-2">
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-white hover:bg-white/5 transition-all text-sm font-semibold uppercase tracking-widest"
-          data-testid="btn-settings"
-        >
-          <Settings className="w-5 h-5" />
-          Settings
-        </button>
+      <div className="px-4 py-6 border-t border-white/10">
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 transition-all text-sm font-semibold uppercase tracking-widest"

@@ -4,6 +4,7 @@ import { Trophy, Timer, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { socket } from "@/lib/socket";
 import { useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface QuestionData {
   text: string;
@@ -22,6 +23,7 @@ const QUESTION_TIME_SECONDS = 15;
 export default function Arena() {
   const [location, setLocation] = useLocation();
   const roomCode = localStorage.getItem("currentRoom") || "UNKNOWN";
+  const { user } = useAuth();
 
   const [question, setQuestion] = useState<QuestionData | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(QUESTION_TIME_SECONDS);
@@ -101,6 +103,10 @@ export default function Arena() {
       localStorage.setItem("currentQuizQuestionCount", String(questionCount));
       localStorage.setItem("currentQuizCorrectCount", String(correctCount));
 
+      // Clean up current room data since quiz is finished
+      localStorage.removeItem("currentRoom");
+      localStorage.removeItem("currentQuestionPayload");
+
       setTimeout(() => {
         setLocation("/post-match");
       }, 1200);
@@ -153,13 +159,16 @@ export default function Arena() {
   };
 
   const handleExitArena = () => {
+    // Clean up localStorage when exiting arena
+    localStorage.removeItem("currentRoom");
+    localStorage.removeItem("currentQuestionPayload");
     setLocation("/join");
   };
 
   const progressPercent =
     maxTime > 0 ? Math.max(0, Math.min(100, (timeLeft / maxTime) * 100)) : 0;
 
-  const playerId = socket.id;
+  const playerId = user?.id || socket.id;
 
   // Capture socket id globally for post-match lookup
   (window as any).quizSocketId = playerId;

@@ -13,7 +13,10 @@ export default function HostLobby() {
 
     useEffect(() => {
         const handlePlayerJoined = (data: { student: any }) => {
-            setStudents(prev => [...prev, data.student]);
+            setStudents(prev => {
+                if (prev.find((s) => s.id === data.student.id)) return prev;
+                return [...prev, data.student];
+            });
         };
 
         socket.on("player_joined", handlePlayerJoined);

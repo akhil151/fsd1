@@ -31,7 +31,8 @@ export async function setupVite(server: Server, app: Express) {
 
   app.use(vite.middlewares);
 
-  app.use("/{*path}", async (req, res, next) => {
+  // Catch-all handler for client-side routing
+  app.get(/.*/, async (req, res, next) => {
     const url = req.originalUrl;
 
     try {

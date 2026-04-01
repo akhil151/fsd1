@@ -176,10 +176,10 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => setRole("student")}
-                              className={`px-3 py-1 rounded-md text-[10px] font-display uppercase tracking-[0.25em] transition-all ${
+                              className={`px-3 py-1 rounded-md text-[10px] font-display uppercase tracking-[0.25em] transition-all duration-200 ${
                                 role === "student"
                                   ? "bg-secondary text-black shadow-[0_0_12px_rgba(0,255,255,0.6)]"
-                                  : "text-muted-foreground hover:text-white"
+                                  : "text-muted-foreground hover:text-white hover:bg-white/5"
                               }`}
                               disabled={isSubmitting}
                             >
@@ -188,10 +188,10 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => setRole("teacher")}
-                              className={`px-3 py-1 rounded-md text-[10px] font-display uppercase tracking-[0.25em] transition-all ${
+                              className={`px-3 py-1 rounded-md text-[10px] font-display uppercase tracking-[0.25em] transition-all duration-200 ${
                                 role === "teacher"
                                   ? "bg-primary text-black shadow-[0_0_12px_rgba(255,0,128,0.6)]"
-                                  : "text-muted-foreground hover:text-white"
+                                  : "text-muted-foreground hover:text-white hover:bg-white/5"
                               }`}
                               disabled={isSubmitting}
                             >

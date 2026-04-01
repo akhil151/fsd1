@@ -23,7 +23,17 @@ const QuestionSchema = new Schema<IQuestion>({
             message: "At least 2 options required",
         },
     },
-    correctAnswer: { type: Number, required: true, min: 0 },
+    correctAnswer: {
+        type: Number,
+        required: true,
+        min: 0,
+        validate: {
+            validator(this: IQuestion, v: number) {
+                return Array.isArray(this.options) && v < this.options.length;
+            },
+            message: "correctAnswer must reference a valid option index",
+        },
+    },
     difficulty: {
         type: String,
         enum: ["easy", "medium", "hard", "beginner", "intermediate", "advanced", "expert"],
@@ -50,5 +60,7 @@ const QuizSchema = new Schema<IQuiz>(
     },
     { timestamps: true }
 );
+
+QuizSchema.index({ creator: 1, createdAt: -1 });
 
 export default mongoose.model<IQuiz>("Quiz", QuizSchema);

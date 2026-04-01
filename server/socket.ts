@@ -1,6 +1,8 @@
 import { Server as HttpServer } from "http";
 import { Server, Socket } from "socket.io";
 import jwt from "jsonwebtoken";
+import { Types } from "mongoose";
+import { nanoid } from "nanoid";
 import { log } from "./index";
 import Quiz, { IQuiz, IQuestion } from "./models/Quiz";
 import MatchResult from "./models/MatchResult";
@@ -124,24 +126,54 @@ export function setupWebSocket(httpServer: HttpServer) {
                 return;
             }
 
+            if (user.role !== "teacher") {
+                socket.emit("error", { message: "Only teachers can host rooms." });
+                return;
+            }
+
+            // Validate input data structure
+            if (!data || typeof data !== 'object') {
+                socket.emit("error", { message: "Invalid request data." });
+                return;
+            }
+
+            if (!data.quizId || typeof data.quizId !== 'string' || !Types.ObjectId.isValid(data.quizId)) {
+                socket.emit("error", { message: "Invalid or missing quiz id." });
+                return;
+            }
+
             // If this teacher already has an active room, close it to prevent ghost rooms
             activeRooms.forEach((state, code) => {
                 if (state.hostUserId === String(user._id)) {
                     if (state.timerInterval) {
                         clearInterval(state.timerInterval);
+                        state.timerInterval = null;
                     }
                     activeRooms.delete(code);
                     io.to(code).emit("room_closed", { reason: "host_launched_new_room" });
                 }
             });
 
-            // Generate 6-character alphanumeric code
-            const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            // Generate unique 8-character code with safety limit
+            let roomCode = "";
+            let attempts = 0;
+            const maxAttempts = 100; // Prevent infinite loop
+            
+            do {
+                roomCode = nanoid(8).toUpperCase();
+                attempts++;
+                
+                if (attempts >= maxAttempts) {
+                    log(`Failed to generate unique room code after ${maxAttempts} attempts`, "socket.io");
+                    socket.emit("error", { message: "Unable to create room. Please try again." });
+                    return;
+                }
+            } while (activeRooms.has(roomCode));
 
             // Initialize room state
             activeRooms.set(roomCode, {
                 quizCode: roomCode,
-                quizId: data?.quizId || "",
+                quizId: data.quizId,
                 hostId: socket.id,
                 hostUserId: String(user._id),
                 players: new Map(),
@@ -155,7 +187,7 @@ export function setupWebSocket(httpServer: HttpServer) {
             socket.join(roomCode);
             socketIndex.set(socket.id, { roomCode, userId: String(user._id), isHost: true });
 
-            log(`Room created: ${roomCode} by ${socket.id} (Quiz: ${data?.quizId})`, "socket.io");
+            log(`Room created: ${roomCode} by ${socket.id} (Quiz: ${data.quizId})`, "socket.io");
             socket.emit("room_created", { roomCode });
         });
 
@@ -167,6 +199,12 @@ export function setupWebSocket(httpServer: HttpServer) {
             }
 
             const { roomCode, studentDetails } = data;
+            
+            if (!roomCode || typeof roomCode !== 'string') {
+                socket.emit("error", { message: "Invalid room code format." });
+                return;
+            }
+
             const room = io.sockets.adapter.rooms.get(roomCode);
             const gameState = activeRooms.get(roomCode);
 
@@ -197,20 +235,57 @@ export function setupWebSocket(httpServer: HttpServer) {
             let playerInfo: PlayerState;
 
             if (isExistingPlayer) {
-                // Reconnection: update socket id only
+                // Reconnection: update socket id and clean up old socket index
                 const existing = gameState.players.get(userId)!;
+                const oldSocketId = existing.socketId;
+                
+                // Clean up old socket index entry if it exists
+                if (oldSocketId && socketIndex.has(oldSocketId)) {
+                    socketIndex.delete(oldSocketId);
+                }
+                
                 existing.socketId = socket.id;
                 playerInfo = existing;
+                log(`Player ${userId} reconnected to room: ${roomCode}`, "socket.io");
             } else {
-                const base = studentDetails || {
-                    name: `Player ${socket.id.substring(0, 4)}`,
-                    avatar: socket.id.substring(0, 2).toUpperCase(),
-                };
+                // Validate and sanitize student details
+                const sanitizedDetails = studentDetails || {};
+                
+                // Sanitize name: limit length and remove potentially harmful characters
+                let playerName = sanitizedDetails.name || `Player ${socket.id.substring(0, 4)}`;
+                if (typeof playerName !== 'string') {
+                    playerName = `Player ${socket.id.substring(0, 4)}`;
+                } else {
+                    // Trim whitespace and limit length
+                    playerName = playerName.trim().substring(0, 50);
+                    // Remove potentially harmful characters but keep basic punctuation
+                    playerName = playerName.replace(/[<>"'&]/g, '');
+                    // Ensure name is not empty after sanitization
+                    if (!playerName) {
+                        playerName = `Player ${socket.id.substring(0, 4)}`;
+                    }
+                }
+                
+                // Sanitize avatar: limit length and basic validation
+                let playerAvatar = sanitizedDetails.avatar || socket.id.substring(0, 2).toUpperCase();
+                if (typeof playerAvatar !== 'string') {
+                    playerAvatar = socket.id.substring(0, 2).toUpperCase();
+                } else {
+                    // Trim and limit length
+                    playerAvatar = playerAvatar.trim().substring(0, 10);
+                    // Remove potentially harmful characters
+                    playerAvatar = playerAvatar.replace(/[<>"'&]/g, '');
+                    // Ensure avatar is not empty after sanitization
+                    if (!playerAvatar) {
+                        playerAvatar = socket.id.substring(0, 2).toUpperCase();
+                    }
+                }
+                
                 playerInfo = {
                     userId,
                     socketId: socket.id,
-                    name: base.name,
-                    avatar: base.avatar,
+                    name: playerName,
+                    avatar: playerAvatar,
                     score: 0,
                     hasAnsweredCurrent: false,
                     currentAnswerIsCorrect: false,
@@ -220,10 +295,10 @@ export function setupWebSocket(httpServer: HttpServer) {
 
             socketIndex.set(socket.id, { roomCode, userId, isHost: false });
 
-            // Notify everyone in the room
+            // Notify everyone in the room with stable user identity
             io.to(roomCode).emit("player_joined", {
                 student: {
-                    id: playerInfo.socketId, // keep existing client expectations
+                    id: playerInfo.userId,
                     name: playerInfo.name,
                     avatar: playerInfo.avatar,
                     score: playerInfo.score,
@@ -267,12 +342,14 @@ export function setupWebSocket(httpServer: HttpServer) {
                 }
             });
 
-            // Start Timer
-            gameState.timerSeconds = 15; // 15 seconds per question
-
+            // Clear any existing timer first and ensure clean state
             if (gameState.timerInterval) {
                 clearInterval(gameState.timerInterval);
+                gameState.timerInterval = null;
             }
+
+            // Start Timer
+            gameState.timerSeconds = 15; // 15 seconds per question
 
             gameState.timerInterval = setInterval(() => {
                 gameState.timerSeconds--;
@@ -280,6 +357,7 @@ export function setupWebSocket(httpServer: HttpServer) {
 
                 if (gameState.timerSeconds <= 0) {
                     clearInterval(gameState.timerInterval!);
+                    gameState.timerInterval = null;
                     handleTimeUp(roomCode);
                 }
             }, 1000);
@@ -288,6 +366,12 @@ export function setupWebSocket(httpServer: HttpServer) {
         const handleTimeUp = (roomCode: string) => {
             const gameState = activeRooms.get(roomCode);
             if (!gameState) return;
+
+            // Ensure timer is properly cleaned up
+            if (gameState.timerInterval) {
+                clearInterval(gameState.timerInterval);
+                gameState.timerInterval = null;
+            }
 
             gameState.status = "leaderboard";
             io.to(roomCode).emit("time_up");
@@ -313,30 +397,64 @@ export function setupWebSocket(httpServer: HttpServer) {
             if (!user) return;
 
             const { roomCode } = data;
+            if (!roomCode || typeof roomCode !== 'string') {
+                socket.emit("error", { message: "Invalid room code." });
+                return;
+            }
+
             const gameState = activeRooms.get(roomCode);
 
-            if (gameState && gameState.hostUserId === String(user._id) && gameState.status === "waiting") {
-                log(`Starting quiz for room ${roomCode}`, "socket.io");
-                try {
-                    // Fetch real quiz from MongoDB
-                    const quizDoc = await Quiz.findById(gameState.quizId);
-                    if (quizDoc && quizDoc.questions && quizDoc.questions.length > 0) {
-                        gameState.questions = quizDoc.questions;
+            if (!gameState || gameState.hostUserId !== String(user._id)) {
+                socket.emit("error", { message: "Unauthorized to start this quiz." });
+                return;
+            }
+
+            if (gameState.status !== "waiting") {
+                socket.emit("error", { message: "Quiz already started or finished." });
+                return;
+            }
+
+            log(`Starting quiz for room ${roomCode}`, "socket.io");
+            
+            try {
+                if (!Types.ObjectId.isValid(gameState.quizId)) {
+                    socket.emit("error", { message: "Invalid quiz id." });
+                    return;
+                }
+
+                // Fetch real quiz from MongoDB with timeout
+                const quizDoc = await Quiz.findById(gameState.quizId).maxTimeMS(5000);
+                
+                if (!quizDoc) {
+                    log(`Error: Quiz ${gameState.quizId} not found.`, "socket.io");
+                    socket.emit("error", { message: "Quiz not found." });
+                    return;
+                }
+
+                if (!quizDoc.questions || quizDoc.questions.length === 0) {
+                    log(`Error: Quiz ${gameState.quizId} has no questions.`, "socket.io");
+                    socket.emit("error", { message: "Quiz has no questions." });
+                    return;
+                }
+
+                gameState.questions = quizDoc.questions;
+                gameState.currentQuestionIndex = 0;
+                broadcastQuestion(roomCode);
+
+            } catch (error) {
+                log(`Error starting quiz: ${error}`, "socket.io");
+                
+                // Determine specific error type for better user feedback
+                if (error instanceof Error) {
+                    if (error.name === 'MongoTimeoutError' || error.message.includes('timeout')) {
+                        socket.emit("error", { message: "Database timeout. Please try again." });
+                    } else if (error.name === 'MongoNetworkError') {
+                        socket.emit("error", { message: "Database connection error. Please try again." });
                     } else {
-                        // Fallback mock questions for testing
-                        log(`Warning: Quiz ${gameState.quizId} not found or empty. Using mock.`, "socket.io");
-                        gameState.questions = [
-                            { text: "What runs on V8?", options: ["Java", "Node.js", "Python", "C#"], correctAnswer: 1, difficulty: "medium" },
-                            { text: "Which HTTP method is idempotent?", options: ["POST", "PATCH", "PUT", "CONNECT"], correctAnswer: 2, difficulty: "medium" }
-                        ];
+                        socket.emit("error", { message: "Failed to load quiz. Please try again." });
                     }
-
-                    gameState.currentQuestionIndex = 0;
-                    broadcastQuestion(roomCode);
-
-                } catch (e) {
-                    log(`Error starting quiz: ${e}`, "socket.io");
-                    socket.emit("error", { message: "Failed to load quiz." });
+                } else {
+                    socket.emit("error", { message: "Failed to load quiz. Please try again." });
                 }
             }
         });
@@ -347,64 +465,93 @@ export function setupWebSocket(httpServer: HttpServer) {
             const { roomCode, answerIndex } = data;
             const gameState = activeRooms.get(roomCode);
 
-            if (gameState && gameState.status === "active") {
-                const player = gameState.players.get(String(user._id));
-
-                // Anti-Cheat: Only accept one answer, and only while timer is running
-                if (player && !player.hasAnsweredCurrent && gameState.timerSeconds > 0) {
-                    player.hasAnsweredCurrent = true;
-                    const q = gameState.questions[gameState.currentQuestionIndex];
-
-                    if (answerIndex === q.correctAnswer) {
-                        player.currentAnswerIsCorrect = true;
-                        // Score calculation based on speed
-                        const timeBonus = gameState.timerSeconds * 10;
-                        player.score += (100 + timeBonus);
-                    }
-
-                    log(`Player ${player.name} answered. Score: ${player.score}`, "socket.io");
-                    // Notify host that someone answered
-                    io.to(gameState.hostId).emit("player_answered", { playerId: player.userId });
-                }
+            if (!gameState || gameState.status !== "active") {
+                return; // Ignore answers when game is not active
             }
+
+            const player = gameState.players.get(String(user._id));
+            if (!player || player.hasAnsweredCurrent || gameState.timerSeconds <= 0) {
+                return; // Player already answered or time is up
+            }
+
+            // Validate answer index
+            if (typeof answerIndex !== 'number' || 
+                !Number.isInteger(answerIndex) || 
+                answerIndex < 0) {
+                log(`Invalid answer index ${answerIndex} from player ${player.name}`, "socket.io");
+                return;
+            }
+
+            const q = gameState.questions[gameState.currentQuestionIndex];
+            if (!q || !q.options || answerIndex >= q.options.length) {
+                log(`Answer index ${answerIndex} out of bounds for player ${player.name}`, "socket.io");
+                return;
+            }
+
+            // Process valid answer
+            player.hasAnsweredCurrent = true;
+
+            if (answerIndex === q.correctAnswer) {
+                player.currentAnswerIsCorrect = true;
+                // Score calculation based on speed
+                const timeBonus = gameState.timerSeconds * 10;
+                player.score += (100 + timeBonus);
+            }
+
+            log(`Player ${player.name} answered ${answerIndex}. Score: ${player.score}`, "socket.io");
+            // Notify host that someone answered
+            io.to(gameState.hostId).emit("player_answered", { playerId: player.userId });
         });
 
         socket.on("next_question", async (data: { roomCode: string }) => {
             if (!user) return;
 
-            const gameState = activeRooms.get(data.roomCode);
-            if (gameState && gameState.hostUserId === String(user._id) && gameState.status === "leaderboard") {
-                gameState.currentQuestionIndex++;
-                if (gameState.currentQuestionIndex < gameState.questions.length) {
-                    broadcastQuestion(data.roomCode);
-                } else {
-                    gameState.status = "finished";
+            const { roomCode } = data;
+            if (!roomCode || typeof roomCode !== 'string') {
+                return;
+            }
 
-                    const finalLeaderboard = Array.from(gameState.players.values())
-                        .map(p => ({ id: p.userId, name: p.name, avatar: p.avatar, score: p.score }))
-                        .sort((a, b) => b.score - a.score);
+            const gameState = activeRooms.get(roomCode);
+            if (!gameState || 
+                gameState.hostUserId !== String(user._id) || 
+                gameState.status !== "leaderboard") {
+                return;
+            }
+            gameState.currentQuestionIndex++;
+            if (gameState.currentQuestionIndex < gameState.questions.length) {
+                broadcastQuestion(roomCode);
+            } else {
+                gameState.status = "finished";
 
-                    const winner = finalLeaderboard[0] || null;
+                const finalLeaderboard = Array.from(gameState.players.values())
+                    .map(p => ({ id: p.userId, name: p.name, avatar: p.avatar, score: p.score }))
+                    .sort((a, b) => b.score - a.score);
 
-                    try {
-                        await MatchResult.create({
-                            quizId: gameState.quizId,
-                            roomCode: gameState.quizCode,
-                            players: finalLeaderboard,
-                            winner,
-                        });
-                        log(`Match result saved for room ${gameState.quizCode}`, "socket.io");
-                    } catch (err) {
-                        log(`Failed to save match result for room ${gameState.quizCode}: ${err}`, "socket.io");
-                    }
+                const winner = finalLeaderboard[0] || null;
 
-                    io.to(data.roomCode).emit("quiz_finished", {
-                        finalLeaderboard,
+                try {
+                    const quizObjectId = new Types.ObjectId(gameState.quizId);
+                    await MatchResult.create({
+                        quizId: quizObjectId,
+                        roomCode: gameState.quizCode,
+                        players: finalLeaderboard,
+                        winner,
                     });
-
-                    // Optionally clean up finished room from memory
-                    activeRooms.delete(data.roomCode);
+                    log(`Match result saved for room ${gameState.quizCode}`, "socket.io");
+                } catch (err) {
+                    log(`Failed to save match result for room ${gameState.quizCode}: ${err}`, "socket.io");
                 }
+
+                io.to(roomCode).emit("quiz_finished", {
+                    finalLeaderboard,
+                });
+
+                // Clean up finished room from memory
+                if (gameState.timerInterval) {
+                    clearInterval(gameState.timerInterval);
+                    gameState.timerInterval = null;
+                }
+                activeRooms.delete(roomCode);
             }
         });
 
@@ -424,6 +571,11 @@ export function setupWebSocket(httpServer: HttpServer) {
 
             // Start a short grace period to allow reconnection
             const timer = setTimeout(() => {
+                // Double-check that the timer hasn't been cleared (race condition protection)
+                if (!reconnectTimers.has(userId)) {
+                    return;
+                }
+                
                 reconnectTimers.delete(userId);
                 const gameState = activeRooms.get(roomCode);
                 if (!gameState) return;
@@ -432,15 +584,22 @@ export function setupWebSocket(httpServer: HttpServer) {
                     // Host did not return in time: close room and clean up
                     if (gameState.timerInterval) {
                         clearInterval(gameState.timerInterval);
+                        gameState.timerInterval = null;
                     }
                     activeRooms.delete(roomCode);
                     io.to(roomCode).emit("room_closed", { reason: "host_disconnected" });
+                    log(`Room ${roomCode} closed due to host disconnect`, "socket.io");
                     return;
                 }
 
                 // Remove player from room if they haven't reconnected
                 if (gameState.players.has(userId)) {
+                    const removedPlayer = gameState.players.get(userId);
                     gameState.players.delete(userId);
+                    
+                    if (removedPlayer) {
+                        log(`Player ${removedPlayer.name} (${userId}) removed from room ${roomCode} due to disconnect`, "socket.io");
+                    }
 
                     // Optionally emit updated leaderboard when appropriate (post-question views)
                     if (gameState.status === "leaderboard" || gameState.status === "finished") {

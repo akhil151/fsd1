@@ -107,8 +107,15 @@ export default function MatchAnalytics() {
         )}
 
         {!isLoading && !error && !latest && (
-          <div className="glass-panel rounded-2xl border border-white/10 p-10 text-center text-muted-foreground">
-            No match results recorded yet for this quiz.
+          <div className="glass-panel rounded-2xl border border-white/10 p-10 text-center">
+            <BarChart3 className="w-16 h-16 mx-auto text-muted-foreground mb-4 opacity-50" />
+            <h3 className="text-xl font-display font-bold mb-2 text-white">No Analytics Available</h3>
+            <p className="text-muted-foreground mb-4">
+              No match results recorded yet for this quiz.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Host a quiz session to generate analytics data.
+            </p>
           </div>
         )}
 

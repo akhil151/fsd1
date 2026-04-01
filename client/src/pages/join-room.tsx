@@ -5,11 +5,18 @@ import { Button } from "@/components/ui/button";
 import { socket } from "@/lib/socket";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function JoinRoom() {
   const [roomCode, setRoomCode] = useState("");
   const [isHovered, setIsHovered] = useState(false);
   const [, setLocation] = useLocation();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    setLocation("/");
+  };
 
   useEffect(() => {
     const handleJoinSuccess = (data: { roomCode: string }) => {
@@ -28,7 +35,7 @@ export default function JoinRoom() {
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (roomCode.length === 6) {
+    if (roomCode.length === 8) {
       console.log("Joining room:", roomCode);
       socket.emit("join_room", { roomCode });
     }
@@ -50,6 +57,7 @@ export default function JoinRoom() {
       >
         <Button
           variant="outline"
+          onClick={handleLogout}
           className="flex items-center gap-2 border-white/20 hover:border-white/50 text-muted-foreground hover:text-white"
           data-testid="btn-logout"
         >
@@ -101,17 +109,17 @@ export default function JoinRoom() {
                 </label>
                 <input
                   type="text"
-                  maxLength={6}
+                  maxLength={8}
                   value={roomCode}
                   onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                  placeholder="000000"
-                  className="w-full bg-transparent text-center text-6xl font-display font-black text-secondary tracking-[0.5em] focus:outline-none placeholder:text-gray-600 neon-text-secondary"
+                  placeholder="00000000"
+                  className="w-full bg-transparent text-center text-5xl font-display font-black text-secondary tracking-[0.3em] focus:outline-none placeholder:text-gray-600 neon-text-secondary"
                   data-testid="input-room-code"
                 />
 
                 {/* Character count indicators */}
                 <div className="flex gap-2 mt-6 justify-center">
-                  {Array.from({ length: 6 }).map((_, i) => (
+                  {Array.from({ length: 8 }).map((_, i) => (
                     <motion.div
                       key={i}
                       className={`h-1 w-3 rounded-full transition-all ${i < roomCode.length
@@ -133,8 +141,8 @@ export default function JoinRoom() {
             >
               <Button
                 type="submit"
-                disabled={roomCode.length !== 6}
-                className={`w-full h-16 rounded-xl font-display uppercase tracking-widest text-lg font-black group overflow-hidden relative transition-all ${roomCode.length === 6
+                disabled={roomCode.length !== 8}
+                className={`w-full h-16 rounded-xl font-display uppercase tracking-widest text-lg font-black group overflow-hidden relative transition-all ${roomCode.length === 8
                     ? "bg-white text-black hover:shadow-[0_0_25px_rgba(255,255,255,0.4)]"
                     : "bg-white/30 text-white/50 cursor-not-allowed"
                   }`}
@@ -151,7 +159,7 @@ export default function JoinRoom() {
             {/* Help Text */}
             <div className="text-center">
               <p className="text-sm text-muted-foreground font-medium">
-                6-digit code provided by your instructor
+                8-digit code provided by your instructor
               </p>
             </div>
           </div>
