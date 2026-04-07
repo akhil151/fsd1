@@ -12,9 +12,10 @@ interface QuizCardProps {
   };
   onDelete?: (id: string) => void;
   onLaunch?: (id: string) => void;
+  onViewAnalytics?: (id: string) => void;
 }
 
-export function QuizCard({ quiz, onDelete, onLaunch }: QuizCardProps) {
+export function QuizCard({ quiz, onDelete, onLaunch, onViewAnalytics }: QuizCardProps) {
   const difficultyColors = {
     beginner: "text-green-400",
     intermediate: "text-yellow-400",
@@ -76,7 +77,9 @@ export function QuizCard({ quiz, onDelete, onLaunch }: QuizCardProps) {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="px-3 py-2.5 rounded-lg border border-white/20 text-white hover:bg-white/10 transition-all"
+            onClick={() => onViewAnalytics?.(quiz.id)}
+            className={`px-3 py-2.5 rounded-lg border border-white/20 text-white hover:bg-white/10 transition-all ${onViewAnalytics ? "hover:border-secondary/50" : "opacity-50 cursor-default"}`}
+            title={onViewAnalytics ? "View Analytics" : "View"}
             data-testid={`btn-view-quiz-${quiz.id}`}
           >
             <Eye className="w-4 h-4" />

@@ -6,6 +6,7 @@ import { QuizCard } from "@/components/teacher/quiz-card";
 import { CreateQuizModal } from "@/components/teacher/create-quiz-modal";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { socket } from "@/lib/socket";
@@ -17,6 +18,16 @@ export default function TeacherDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  // Redirect to login if the user logs out while on this page.
+  // Without this guard, background API calls continue firing,
+  // hit 401, and trigger a hard window.location.assign flash.
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      setLocation("/");
+    }
+  }, [isAuthenticated, authLoading, setLocation]);
 
   useEffect(() => {
     const handleRoomCreated = (data: { roomCode: string }) => {
@@ -46,7 +57,8 @@ export default function TeacherDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab === "quizzes") {
+    if (activeTab === "quizzes" || activeTab === "analytics") {
+      setIsLoading(true);
       loadQuizzes();
     }
   }, [activeTab]);
@@ -87,7 +99,17 @@ export default function TeacherDashboard() {
   };
 
   const handleLaunchQuiz = (id: string) => {
-    // Ideally map the quiz id to the hosted room state, for now we just create a room
+    // Prevent launching a quiz with no questions — the server will reject it,
+    // but this gives the teacher immediate, visible feedback.
+    const quiz = quizzes.find((q: any) => (q._id || q.id) === id);
+    if (quiz && (!quiz.questions || quiz.questions.length === 0)) {
+      toast({
+        title: "Cannot Launch Quiz",
+        description: "Add at least one question before launching.",
+        variant: "destructive",
+      });
+      return;
+    }
     console.log("Teacher is hosting room for quiz:", id);
     localStorage.setItem("currentQuizId", id);
     socket.emit("host_room", { quizId: id });
@@ -214,11 +236,50 @@ export default function TeacherDashboard() {
 
           {activeTab === "analytics" && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="glass-panel rounded-xl p-8 border border-white/10 text-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="space-y-6"
             >
-              <p className="text-muted-foreground">Analytics coming soon...</p>
+              <div>
+                <h2 className="text-2xl font-display font-bold mb-2 text-white">POST-MATCH ANALYTICS</h2>
+                <p className="text-sm text-muted-foreground mb-6">Select a quiz to view its match history and results.</p>
+              </div>
+              {isLoading ? (
+                <div className="flex justify-center items-center h-64">
+                  <Loader2 className="w-10 h-10 text-primary animate-spin opacity-50" />
+                </div>
+              ) : quizzes.length === 0 ? (
+                <div className="glass-panel rounded-xl p-10 border border-white/10 text-center">
+                  <p className="text-muted-foreground">No quizzes found. Create a quiz first to see analytics.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {quizzes.map((quiz, index) => {
+                    const quizProps = {
+                      id: quiz._id || quiz.id,
+                      title: quiz.title,
+                      questionCount: quiz.questions?.length || 0,
+                      difficulty: "intermediate",
+                      createdAt: new Date(quiz.createdAt),
+                      playCount: quiz.playCount || 0,
+                    };
+                    return (
+                      <motion.div
+                        key={quizProps.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 + index * 0.05 }}
+                      >
+                        <QuizCard
+                          quiz={quizProps}
+                          onViewAnalytics={(id) => setLocation(`/analytics/${id}`)}
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
         </div>

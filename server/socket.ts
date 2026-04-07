@@ -531,12 +531,16 @@ export function setupWebSocket(httpServer: HttpServer) {
 
                 try {
                     const quizObjectId = new Types.ObjectId(gameState.quizId);
-                    await MatchResult.create({
-                        quizId: quizObjectId,
-                        roomCode: gameState.quizCode,
-                        players: finalLeaderboard,
-                        winner,
-                    });
+                    // Save match result and increment quiz play count atomically.
+                    await Promise.all([
+                        MatchResult.create({
+                            quizId: quizObjectId,
+                            roomCode: gameState.quizCode,
+                            players: finalLeaderboard,
+                            winner,
+                        }),
+                        Quiz.findByIdAndUpdate(quizObjectId, { $inc: { playCount: 1 } }),
+                    ]);
                     log(`Match result saved for room ${gameState.quizCode}`, "socket.io");
                 } catch (err) {
                     log(`Failed to save match result for room ${gameState.quizCode}: ${err}`, "socket.io");

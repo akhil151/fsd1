@@ -10,8 +10,9 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function JoinRoom() {
   const [roomCode, setRoomCode] = useState("");
   const [isHovered, setIsHovered] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const handleLogout = () => {
     logout();
@@ -20,24 +21,38 @@ export default function JoinRoom() {
 
   useEffect(() => {
     const handleJoinSuccess = (data: { roomCode: string }) => {
-      // In a real app we'd save this to context or local storage. For now we navigate.
-      // We pass the code in the URL so the waiting lobby can use it
+      setJoinError(null);
       localStorage.setItem("currentRoom", data.roomCode);
       setLocation("/lobby");
     };
 
+    // Show a visible error when the server rejects the join request.
+    // Previously this fired silently — the student saw no feedback.
+    const handleSocketError = (data: { message: string }) => {
+      setJoinError(data.message || "Failed to join room. Please try again.");
+    };
+
     socket.on("joined_successfully", handleJoinSuccess);
+    socket.on("error", handleSocketError);
 
     return () => {
       socket.off("joined_successfully", handleJoinSuccess);
+      socket.off("error", handleSocketError);
     };
   }, [setLocation]);
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     if (roomCode.length === 8) {
+      setJoinError(null);
       console.log("Joining room:", roomCode);
-      socket.emit("join_room", { roomCode });
+      socket.emit("join_room", {
+        roomCode,
+        studentDetails: {
+          name: user?.name || "Player",
+          avatar: (user?.name || "PL").substring(0, 2).toUpperCase(),
+        },
+      });
     }
   };
 
@@ -111,9 +126,13 @@ export default function JoinRoom() {
                   type="text"
                   maxLength={8}
                   value={roomCode}
-                  onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    setRoomCode(e.target.value.toUpperCase());
+                    // Clear any previous error when the user starts typing a new code
+                    if (joinError) setJoinError(null);
+                  }}
                   placeholder="00000000"
-                  className="w-full bg-transparent text-center text-5xl font-display font-black text-secondary tracking-[0.3em] focus:outline-none placeholder:text-gray-600 neon-text-secondary"
+                  className="w-full bg-transparent text-center text-5xl font-display font-black text-secondary tracking-[0.25em] focus:outline-none placeholder:text-gray-600 neon-text-secondary pr-[0.25em]"
                   data-testid="input-room-code"
                 />
 
@@ -131,6 +150,12 @@ export default function JoinRoom() {
                     />
                   ))}
                 </div>
+                {/* Error Banner */}
+                {joinError && (
+                  <p className="mt-3 text-center text-xs text-destructive font-semibold uppercase tracking-widest animate-pulse">
+                    {joinError}
+                  </p>
+                )}
               </div>
             </div>
 

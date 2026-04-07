@@ -11,6 +11,7 @@ export interface IQuiz extends Document {
     title: string;
     creator: Types.ObjectId;
     questions: IQuestion[];
+    playCount: number;
 }
 
 const QuestionSchema = new Schema<IQuestion>({
@@ -56,6 +57,13 @@ const QuizSchema = new Schema<IQuiz>(
         questions: {
             type: [QuestionSchema],
             default: [],
+        },
+        // Tracks how many times this quiz has been played.
+        // Incremented by the socket server when a match finishes.
+        playCount: {
+            type: Number,
+            default: 0,
+            min: 0,
         },
     },
     { timestamps: true }

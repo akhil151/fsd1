@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Gamepad2, User, Lock, Mail, ChevronRight, Zap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,39 +18,51 @@ export default function Home() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  // If already authenticated, redirect based on role
-  if (isAuthenticated && user) {
-    if (user.role === "teacher") {
-      setLocation("/dashboard");
-    } else {
-      setLocation("/join");
+  // If already authenticated (e.g. page refresh with valid token), redirect based on role.
+  // Must be in useEffect — never call setLocation during render.
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === "teacher") {
+        setLocation("/dashboard");
+      } else {
+        setLocation("/join");
+      }
     }
-  }
+  }, [isAuthenticated, user, setLocation]);
+
+  // Reset form fields when switching tabs to prevent stale values
+  // from causing extra re-renders or unexpected validation warnings.
+  const handleToggle = (loginMode: boolean) => {
+    setIsLogin(loginMode);
+    setEmail("");
+    setPassword("");
+    setName("");
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
+      // After successful auth, read role from the returned user object — NOT from
+      // stale React state (user state hasn't re-rendered yet at this point).
+      let loggedInUser;
       if (isLogin) {
-        await login({ email, password });
-        toast({
-          title: "Login Successful",
-          description: "Welcome back to the Neon Quiz Arena!",
-        });
+        loggedInUser = await login({ email, password });
       } else {
-        await register({ email, password, name, role });
-        toast({
-          title: "Registration Successful",
-          description: role === "teacher"
-            ? "Your instructor profile has been created."
-            : "Your player profile has been created.",
-        });
+        loggedInUser = await register({ email, password, name, role });
       }
 
-      // After successful auth, route based on role
-      const targetRole = isLogin ? (user?.role || "student") : role;
-      if (targetRole === "teacher") {
+      toast({
+        title: isLogin ? "Login Successful" : "Registration Successful",
+        description: isLogin
+          ? "Welcome back to the Neon Quiz Arena!"
+          : loggedInUser.role === "teacher"
+            ? "Your instructor profile has been created."
+            : "Your player profile has been created.",
+      });
+
+      if (loggedInUser.role === "teacher") {
         setLocation("/dashboard");
       } else {
         setLocation("/join");
@@ -125,17 +137,19 @@ export default function Home() {
 
             {/* Toggle Login/Register */}
             <div className="flex bg-black/40 p-1 rounded-xl mb-8 relative border border-white/10">
+              {/* Sliding highlight — use left % so Framer Motion interpolates
+                  between two numbers only. Mixing a number (4) with a CSS calc()
+                  string causes NaN in Framer Motion's interpolator and flicker. */}
               <motion.div
-                className="absolute inset-y-1 w-[calc(50%-4px)] bg-gradient-to-r from-primary/80 to-accent/80 rounded-lg shadow-[0_0_15px_rgba(255,0,128,0.4)]"
-                layout
+                className="absolute inset-y-1 w-[calc(50%-4px)] bg-gradient-to-r from-primary/80 to-accent/80 rounded-lg shadow-[0_0_15px_rgba(255,0,128,0.4)] pointer-events-none"
                 initial={false}
                 animate={{
-                  x: isLogin ? 4 : "calc(100% + 4px)"
+                  left: isLogin ? "2px" : "calc(50% + 2px)",
                 }}
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
               <button
-                onClick={() => setIsLogin(true)}
+                onClick={() => handleToggle(true)}
                 className={`flex-1 py-3 text-sm font-display uppercase tracking-widest font-bold z-10 transition-colors ${isLogin ? "text-white" : "text-gray-400 hover:text-white"}`}
                 data-testid="btn-toggle-login"
                 type="button"
@@ -143,7 +157,7 @@ export default function Home() {
                 Login
               </button>
               <button
-                onClick={() => setIsLogin(false)}
+                onClick={() => handleToggle(false)}
                 className={`flex-1 py-3 text-sm font-display uppercase tracking-widest font-bold z-10 transition-colors ${!isLogin ? "text-white" : "text-gray-400 hover:text-white"}`}
                 data-testid="btn-toggle-register"
                 type="button"

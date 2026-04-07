@@ -50,7 +50,6 @@ const MatchResultSchema = new Schema<IMatchResult>(
 );
 
 MatchResultSchema.index({ quizId: 1, createdAt: -1 });
-MatchResultSchema.index({ roomCode: 1 }, { unique: true });
 
 export default mongoose.model<IMatchResult>("MatchResult", MatchResultSchema);
 

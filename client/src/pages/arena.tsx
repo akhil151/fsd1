@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Timer, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,11 @@ export default function Arena() {
   const [questionCount, setQuestionCount] = useState<number>(0);
   const [correctCount, setCorrectCount] = useState<number>(0);
 
+  // Refs that mirror the state above — always current, readable inside
+  // useEffect closures that would otherwise capture stale initial values.
+  const questionCountRef = useRef(0);
+  const correctCountRef = useRef(0);
+
   // Helper to apply incoming question payloads (including the first one from lobby)
   const applyQuestionActive = (data: {
     currentQuestionIndex: number;
@@ -55,6 +60,7 @@ export default function Arena() {
     setLeaderboard(null);
     setCorrectAnswerIndex(null);
     setQuestionCount(data.totalQuestions || 0);
+    questionCountRef.current = data.totalQuestions || 0;
   };
 
   useEffect(() => {
@@ -90,6 +96,16 @@ export default function Arena() {
       setLeaderboard(data.leaderboard);
       setCorrectAnswerIndex(data.correctAnswer);
       setShowLeaderboard(true);
+      // Track accuracy: increment if the player's locked-in answer was correct.
+      // selectedIndex is read via closure — we use a functional update to avoid
+      // stale closure issues with correctCount.
+      setCorrectCount(prev => {
+        const next = typeof selectedIndex === "number" && selectedIndex === data.correctAnswer
+          ? prev + 1
+          : prev;
+        correctCountRef.current = next;
+        return next;
+      });
     };
 
     const handleQuizFinished = (data: { finalLeaderboard: LeaderboardEntry[] }) => {
@@ -98,10 +114,15 @@ export default function Arena() {
       setShowLeaderboard(true);
       setIsTimeUp(true);
 
-      // Persist final match data for the post-match screen
+      // Persist final match data for the post-match screen.
+      // Use localStorage for playerId instead of window.quizSocketId —
+      // window properties are unreliable across React page navigations.
       localStorage.setItem("lastMatchResult", JSON.stringify(data));
-      localStorage.setItem("currentQuizQuestionCount", String(questionCount));
-      localStorage.setItem("currentQuizCorrectCount", String(correctCount));
+      localStorage.setItem("quiz_arena_player_id", playerId || "");
+      // Use refs to read live values — the state variables are stale inside this
+      // closure because the useEffect dependency array is empty ([]).
+      localStorage.setItem("currentQuizQuestionCount", String(questionCountRef.current));
+      localStorage.setItem("currentQuizCorrectCount", String(correctCountRef.current));
 
       // Clean up current room data since quiz is finished
       localStorage.removeItem("currentRoom");

@@ -39,8 +39,6 @@ const UserSchema = new Schema<IUser>(
     { timestamps: true }
 );
 
-// Ensure fast lookups and uniqueness at the database level
-UserSchema.index({ email: 1 }, { unique: true });
 
 // Hash password before save (promise-style, no next needed)
 UserSchema.pre("save", async function () {

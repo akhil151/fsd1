@@ -34,9 +34,12 @@ export async function apiFetch<T>(
     return window.fetch(`${API_URL}${endpoint}`, config).then(async (response) => {
         if (response.status === 401) {
             clearAuthToken();
-            // Only reload if we're not already on the login page or handling a login request
+            // Use href instead of assign — both navigate, but this avoids
+            // React state loss in cases where the auth guard already redirected.
+            // The auth guard useEffect in protected pages fires first via React
+            // state; this is a safety net for truly unauthorized direct access.
             if (window.location.pathname !== "/" && endpoint !== "/auth/login") {
-                window.location.assign("/");
+                window.location.href = "/";
                 return Promise.reject(new Error("Unauthorized"));
             }
         }

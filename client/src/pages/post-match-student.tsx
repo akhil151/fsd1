@@ -20,20 +20,23 @@ export default function PostMatchStudent() {
   const stored = localStorage.getItem("lastMatchResult");
   const data: StoredMatchSummary | null = stored ? JSON.parse(stored) : null;
 
-  const socketId = (window as any).quizSocketId || "";
+  // Read player identity from localStorage — persisted by arena.tsx before navigating away.
+  // Using window.quizSocketId is unreliable: the property is lost when the arena
+  // component unmounts during React page navigation.
+  const playerId = localStorage.getItem("quiz_arena_player_id") || "";
 
   const { rank, score, totalPlayers } = useMemo(() => {
     if (!data || !data.finalLeaderboard) {
       return { rank: 0, score: 0, totalPlayers: 0 };
     }
-    const idx = data.finalLeaderboard.findIndex((p) => p.id === socketId);
+    const idx = data.finalLeaderboard.findIndex((p) => p.id === playerId);
     const player = idx >= 0 ? data.finalLeaderboard[idx] : null;
     return {
       rank: idx >= 0 ? idx + 1 : 0,
       score: player ? player.score : 0,
       totalPlayers: data.finalLeaderboard.length,
     };
-  }, [data, socketId]);
+  }, [data, playerId]);
 
   const totalQuestions = Number(localStorage.getItem("currentQuizQuestionCount") || "0");
   const correctCount = Number(localStorage.getItem("currentQuizCorrectCount") || "0");
@@ -43,6 +46,7 @@ export default function PostMatchStudent() {
 
   const handleReturnHome = () => {
     localStorage.removeItem("lastMatchResult");
+    localStorage.removeItem("quiz_arena_player_id");
     localStorage.removeItem("currentQuizCorrectCount");
     localStorage.removeItem("currentQuizQuestionCount");
     setLocation("/");
@@ -160,7 +164,15 @@ export default function PostMatchStudent() {
           </Button>
 
           <button
-            onClick={() => setLocation("/join")}
+            onClick={() => {
+              // Clean up stale match data before queuing for a new match
+              // so the post-match screen doesn't show a previous game's results.
+              localStorage.removeItem("lastMatchResult");
+              localStorage.removeItem("quiz_arena_player_id");
+              localStorage.removeItem("currentQuizCorrectCount");
+              localStorage.removeItem("currentQuizQuestionCount");
+              setLocation("/join");
+            }}
             className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-secondary transition-colors uppercase tracking-[0.25em]"
           >
             <ArrowLeft className="w-3 h-3" />
