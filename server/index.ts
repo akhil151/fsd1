@@ -49,6 +49,7 @@ app.use((req, res, next) => {
   };
 
   res.on("finish", () => {
+    console.log("Response sent:", req.method, req.url);
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
@@ -58,6 +59,10 @@ app.use((req, res, next) => {
 
       log(logLine);
     }
+  });
+
+  res.on("close", () => {
+    console.log("Response closed:", req.method, req.url);
   });
 
   next();

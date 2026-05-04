@@ -10,7 +10,7 @@ export const protect = async (
     req: AuthRequest,
     res: Response,
     next: NextFunction
-): Promise<void> => {
+): Promise<any> => {
     let token: string | undefined;
 
     if (
@@ -21,8 +21,9 @@ export const protect = async (
     }
 
     if (!token) {
-        res.status(401).json({ message: "Not authorized — no token" });
-        return;
+        const err = new Error("Not authorized — no token") as any;
+        err.status = 401;
+        return next(err);
     }
 
     try {
@@ -31,14 +32,17 @@ export const protect = async (
         const user = await User.findById(decoded.id).select("-password");
 
         if (!user) {
-            res.status(401).json({ message: "User no longer exists" });
-            return;
+            const err = new Error("User no longer exists") as any;
+            err.status = 401;
+            return next(err);
         }
 
         req.user = user;
         next();
     } catch {
-        res.status(401).json({ message: "Not authorized — invalid token" });
+        const err = new Error("Not authorized — invalid token") as any;
+        err.status = 401;
+        return next(err);
     }
 };
 
@@ -46,10 +50,11 @@ export const teacherOnly = (
     req: AuthRequest,
     res: Response,
     next: NextFunction
-): void => {
+): any => {
     if (req.user?.role !== "teacher") {
-        res.status(403).json({ message: "Access restricted to teachers only" });
-        return;
+        const err = new Error("Access restricted to teachers only") as any;
+        err.status = 403;
+        return next(err);
     }
     next();
 };

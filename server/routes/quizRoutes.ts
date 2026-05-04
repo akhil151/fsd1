@@ -7,34 +7,29 @@ import {
 import MatchResult from "../models/MatchResult";
 import { protect, teacherOnly } from "../middleware/protect";
 
+import { asyncHandler } from "../middleware/asyncHandler";
+
 const router = Router();
 
 // All quiz routes require authentication and teacher role
 router.use(protect as any, teacherOnly as any);
 
-router.get("/", getMyQuizzes);
-router.post("/", createQuiz);
-router.delete("/:id", deleteQuiz);
+router.get("/", asyncHandler(getMyQuizzes));
+router.post("/", asyncHandler(createQuiz));
+router.delete("/:id", asyncHandler(deleteQuiz));
 
 // Simple analytics endpoint for match results related to a quiz
-router.get("/:id/analytics", async (req, res) => {
-    try {
-        const quizId = req.params.id;
+router.get("/:id/analytics", asyncHandler(async (req, res): Promise<any> => {
+    const quizId = req.params.id;
 
-        const results = await MatchResult.find({ quizId })
-            .sort({ createdAt: -1 })
-            .lean();
+    const results = await MatchResult.find({ quizId })
+        .sort({ createdAt: -1 })
+        .lean();
 
-        res.json({
-            success: true,
-            results,
-        });
-    } catch (err: any) {
-        res.status(500).json({
-            success: false,
-            message: "Failed to load analytics",
-        });
-    }
-});
+    return res.json({
+        success: true,
+        results,
+    });
+}));
 
 export default router;

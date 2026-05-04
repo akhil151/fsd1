@@ -14,6 +14,6 @@ export function serveStatic(app: Express) {
 
   // SPA fallback for any unmatched path
   app.use("/*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    return res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
