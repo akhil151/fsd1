@@ -38,6 +38,7 @@ export function log(message: string, source = "express") {
 }
 
 app.use((req, res, next) => {
+  console.log("Incoming:", req.method, req.url);
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -83,7 +84,8 @@ app.use((req, res, next) => {
     console.error("Internal Server Error:", err);
 
     if (res.headersSent) {
-      return next(err);
+      console.error("Blocked double response:", err.message);
+      return;
     }
 
     return res.status(status).json({ message });

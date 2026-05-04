@@ -10,8 +10,7 @@ const generateToken = (id: string, role: string): string => {
 
 // POST /api/auth/register
 export const register = async (req: Request, res: Response): Promise<any> => {
-    try {
-        const { name, email, password, role } = req.body;
+    const { name, email, password, role } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({ message: "Name, email and password are required" });
@@ -40,15 +39,11 @@ export const register = async (req: Request, res: Response): Promise<any> => {
                 role: user.role,
             },
         });
-    } catch (err) {
-        return res.status(500).json({ message: (err as Error).message });
-    }
 };
 
 // POST /api/auth/login
 export const login = async (req: Request, res: Response): Promise<any> => {
-    try {
-        const { email, password } = req.body;
+    const { email, password } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({ message: "Email and password are required" });
@@ -76,9 +71,6 @@ export const login = async (req: Request, res: Response): Promise<any> => {
                 role: user.role,
             },
         });
-    } catch (err) {
-        return res.status(500).json({ message: (err as Error).message });
-    }
 };
 
 // GET /api/auth/me  (protected)

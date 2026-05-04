@@ -26,5 +26,10 @@ export async function registerRoutes(
   app.use("/api/auth", authRoutes);
   app.use("/api/quizzes", quizRoutes);
 
+  // Fallback for unhandled API routes
+  app.use("/api", (req, res) => {
+    return res.status(404).json({ message: "API route not found" });
+  });
+
   return httpServer;
 }
