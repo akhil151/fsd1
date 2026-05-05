@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
 import { nanoid } from "nanoid";
 import { log } from "./index";
-import Quiz, { IQuiz, IQuestion } from "./models/Quiz";
+import Quiz, { IQuestion } from "./models/Quiz";
 import MatchResult from "./models/MatchResult";
 import User from "./models/User";
 
@@ -38,6 +38,9 @@ const activeRooms = new Map<string, RoomState>();
 // socket.id -> metadata for disconnect handling
 const socketIndex = new Map<string, { roomCode: string; userId: string; isHost: boolean }>();
 
+// WebSocket Integrity tracking
+const eventCounters = new Map<string, Map<string, number>>(); // socketId -> eventName -> count
+
 // userId -> reconnect timeout
 const reconnectTimers = new Map<string, NodeJS.Timeout>();
 
@@ -45,6 +48,8 @@ export function setupWebSocket(httpServer: HttpServer) {
     const allowedOrigins = [
         "http://localhost:5000",
         "http://127.0.0.1:5000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3001",
         ...(process.env.CLIENT_ORIGIN ? [process.env.CLIENT_ORIGIN] : []),
     ];
 
@@ -54,6 +59,29 @@ export function setupWebSocket(httpServer: HttpServer) {
             methods: ["GET", "POST"],
             credentials: true,
         },
+    });
+
+    // Integrity Middleware
+    io.use((socket, next) => {
+        const originalEmit = socket.emit;
+        socket.emit = function (event: string, ...args: any[]) {
+            if (event === "sync_state" || event === "error") {
+                // Allow these to repeat
+                return originalEmit.apply(socket, [event, ...args]);
+            }
+            
+            const counts = eventCounters.get(socket.id) || new Map();
+            const count = (counts.get(event) || 0) + 1;
+            counts.set(event, count);
+            eventCounters.set(socket.id, counts);
+
+            if (count > 5) { // Threshold for suspicious duplicates
+                console.error(`FAIL: WebSocket Integrity violated. Duplicate event emission: ${event} (${count} times) for socket ${socket.id}`);
+                process.exit(1);
+            }
+            return originalEmit.apply(socket, [event, ...args]);
+        };
+        next();
     });
 
     // Socket.IO authentication middleware
@@ -563,6 +591,20 @@ export function setupWebSocket(httpServer: HttpServer) {
 
         socket.on("disconnect", () => {
             log(`Client disconnected: ${socket.id}`, "socket.io");
+            eventCounters.delete(socket.id); // Clean up event counters
+
+            // Integrity check: No ghost connections
+            const currentConnections = Array.from(io.sockets.sockets.keys());
+            if (currentConnections.includes(socket.id)) {
+                // This shouldn't happen inside the disconnect handler of the same socket,
+                // but we check if the socket id still exists in the general map after some time.
+                setTimeout(() => {
+                    if (io.sockets.sockets.has(socket.id)) {
+                        console.error(`FAIL: WebSocket Integrity violated. Ghost connection detected for socket ${socket.id} after disconnect.`);
+                        process.exit(1);
+                    }
+                }, 1000);
+            }
 
             const meta = socketIndex.get(socket.id);
             if (!meta) {

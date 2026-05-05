@@ -38,6 +38,7 @@ export const protect = async (
         }
 
         req.user = user;
+        console.log(`[Middleware] protect execution - passed to next() for ${user.email}`);
         next();
     } catch {
         const err = new Error("Not authorized — invalid token") as any;
@@ -54,7 +55,9 @@ export const teacherOnly = (
     if (req.user?.role !== "teacher") {
         const err = new Error("Access restricted to teachers only") as any;
         err.status = 403;
+        console.log(`[Middleware] teacherOnly execution - rejected non-teacher`);
         return next(err);
     }
+    console.log(`[Middleware] teacherOnly execution - passed to next()`);
     next();
 };

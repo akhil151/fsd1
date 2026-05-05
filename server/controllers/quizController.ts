@@ -4,6 +4,13 @@ import type { AuthRequest } from "../middleware/protect";
 
 // POST /api/quizzes — Create a new quiz
 export const createQuiz = async (req: AuthRequest, res: Response): Promise<any> => {
+    // SLOW DB SIMULATION
+    if (process.env.SIMULATE_SLOW_DB === "true") {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    console.log(`[Controller] Executing createQuiz...`);
+
     const { title, questions } = req.body;
 
         if (!title) {

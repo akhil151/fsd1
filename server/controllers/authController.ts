@@ -10,6 +10,11 @@ const generateToken = (id: string, role: string): string => {
 
 // POST /api/auth/register
 export const register = async (req: Request, res: Response): Promise<any> => {
+    // SLOW DB SIMULATION
+    if (process.env.SIMULATE_SLOW_DB === "true") {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
     const { name, email, password, role } = req.body;
 
         if (!name || !email || !password) {
@@ -43,6 +48,11 @@ export const register = async (req: Request, res: Response): Promise<any> => {
 
 // POST /api/auth/login
 export const login = async (req: Request, res: Response): Promise<any> => {
+    // SLOW DB SIMULATION
+    if (process.env.SIMULATE_SLOW_DB === "true") {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
     const { email, password } = req.body;
 
         if (!email || !password) {

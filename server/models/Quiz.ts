@@ -29,7 +29,7 @@ const QuestionSchema = new Schema<IQuestion>({
         required: true,
         min: 0,
         validate: {
-            validator(this: IQuestion, v: number) {
+            validator(this: any, v: number) {
                 return Array.isArray(this.options) && v < this.options.length;
             },
             message: "correctAnswer must reference a valid option index",
