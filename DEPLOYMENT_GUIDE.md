@@ -274,12 +274,16 @@ Or use external service like [Kaffeine](https://www.kaffeine.herokuapp.com/)
 ### Frontend (`vercel.json`):
 ```json
 {
-  "buildCommand": "npm run build:client",
+  "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist/public",
-  "env": {
-    "VITE_API_URL": "@vite_api_url",
-    "VITE_SOCKET_URL": "@vite_socket_url"
-  }
+  "installCommand": "npm install",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
 ```
 

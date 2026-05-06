@@ -3,10 +3,6 @@
   "outputDirectory": "dist/public",
   "installCommand": "npm install",
   "framework": "vite",
-  "env": {
-    "VITE_API_URL": "@vite_api_url",
-    "VITE_SOCKET_URL": "@vite_socket_url"
-  },
   "rewrites": [
     {
       "source": "/(.*)",
