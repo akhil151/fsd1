@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: quiz-arena
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false # Set this in the Render dashboard
+      - key: JWT_SECRET
+        generateValue: true # Generates a random secret automatically
+      - key: ENABLE_MONITORING
+        value: "true"
+      - key: DEBUG_API
+        value: "false"

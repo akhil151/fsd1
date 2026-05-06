@@ -11,6 +11,15 @@ import mongoose from "mongoose";
 const app = express();
 const httpServer = createServer(app);
 
+// Environment Validation
+const REQUIRED_ENV_VARS = ["MONGO_URI", "JWT_SECRET"];
+const missingVars = REQUIRED_ENV_VARS.filter((v) => !process.env[v]);
+
+if (missingVars.length > 0 && process.env.NODE_ENV === "production") {
+  console.error(`[Fatal] Missing required environment variables: ${missingVars.join(", ")}`);
+  process.exit(1);
+}
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
