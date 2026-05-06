@@ -72,21 +72,7 @@ export function setupWebSocket(httpServer: HttpServer) {
 
     const io = new Server(httpServer, {
         cors: {
-            origin: (origin, callback) => {
-                if (!origin) return callback(null, true);
-                const isAllowed = allowedOrigins.some(allowed => {
-                    if (allowed.includes("*")) {
-                        const regex = new RegExp("^" + allowed.replace(/\*/g, ".*") + "$");
-                        return regex.test(origin);
-                    }
-                    return allowed === origin;
-                });
-                if (isAllowed || process.env.NODE_ENV === "development") {
-                    callback(null, true);
-                } else {
-                    callback(new Error("Not allowed by CORS"));
-                }
-            },
+            origin: true,
             methods: ["GET", "POST"],
             credentials: true,
         },

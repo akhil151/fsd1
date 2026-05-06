@@ -24,24 +24,7 @@ export async function registerRoutes(
 
   app.use(
     cors({
-      origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl)
-        if (!origin) return callback(null, true);
-        
-        const isAllowed = allowedOrigins.some(allowed => {
-          if (allowed.includes("*")) {
-            const regex = new RegExp("^" + allowed.replace(/\*/g, ".*") + "$");
-            return regex.test(origin);
-          }
-          return allowed === origin;
-        });
-
-        if (isAllowed || process.env.NODE_ENV === "development") {
-          callback(null, true);
-        } else {
-          callback(new Error("Not allowed by CORS"));
-        }
-      },
+      origin: true, // Reflects the request origin, allowing any domain to access
       credentials: true,
       methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
