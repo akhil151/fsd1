@@ -5,6 +5,7 @@ services:
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
+    healthCheckPath: /api/health # Using a lightweight endpoint for health checks
     envVars:
       - key: NODE_ENV
         value: production

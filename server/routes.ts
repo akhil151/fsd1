@@ -43,6 +43,11 @@ export async function registerRoutes(
   app.use("/api/auth", authRoutes);
   app.use("/api/quizzes", quizRoutes);
 
+  // Health check endpoint
+  app.use("/api/health", (req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
   // Fallback for unhandled API routes
   app.use("/api", (req, res) => {
     return res.status(404).json({ message: "API route not found" });
