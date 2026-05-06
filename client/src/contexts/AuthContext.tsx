@@ -32,10 +32,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     const data = await apiFetch<{ user: User }>("/auth/me");
                     setUser(data.user);
                     // Restore authenticated socket connection on page refresh
-                    // Always disconnect first to ensure the new token is used for the next handshake
-                    socket.disconnect();
-                    (socket as any).auth = { token };
-                    socket.connect();
+                    if (socket.disconnected) {
+                        socket.connect();
+                    }
                 } catch (error) {
                     clearAuthToken();
                     setUser(null);
@@ -55,12 +54,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAuthToken(data.token);
         setUser(data.user);
 
-        // Always disconnect first, then update auth token, then reconnect.
-        // This guarantees the server receives a fresh handshake with the new
-        // token — skipping disconnect risks sending the old/missing token.
-        socket.disconnect();
-        (socket as any).auth = { token: data.token };
-        socket.connect();
+        // Cleanly reconnect with the new token
+        socket.disconnect().connect();
 
         return data.user;
     };
@@ -72,10 +67,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAuthToken(data.token);
         setUser(data.user);
 
-        // Same pattern as login: always do a clean disconnect+reconnect
-        socket.disconnect();
-        (socket as any).auth = { token: data.token };
-        socket.connect();
+        // Cleanly reconnect with the new token
+        socket.disconnect().connect();
 
         return data.user;
     };
@@ -91,14 +84,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem("currentQuizId");
         localStorage.removeItem("currentQuizQuestionCount");
         localStorage.removeItem("currentQuizCorrectCount");
-        // Cleanly drop the authenticated connection and clear the token.
-        // Do NOT reconnect — the socket stays dormant until next login.
-        try {
-            (socket as any).auth = { token: null };
-            socket.disconnect();
-        } catch {
-            // ignore socket errors on logout
-        }
+        // Cleanly drop the authenticated connection.
+        // The next connection attempt will use getAuthToken() which will return null.
+        socket.disconnect();
     };
 
     return (

@@ -88,7 +88,7 @@ export function setupWebSocket(httpServer: HttpServer) {
     // Integrity Middleware
     io.use((socket, next) => {
         const originalEmit = socket.emit;
-        socket.emit = function (event: string, ...args: any[]) {
+        (socket as any).emit = function (event: string, ...args: any[]) {
             if (event === "sync_state" || event === "error") {
                 // Allow these to repeat
                 return originalEmit.apply(socket, [event, ...args]);
@@ -101,9 +101,8 @@ export function setupWebSocket(httpServer: HttpServer) {
 
             if (count > 5) { // Threshold for suspicious duplicates
                 console.error(`FAIL: WebSocket Integrity violated. Duplicate event emission: ${event} (${count} times) for socket ${socket.id}`);
-                if (process.env.NODE_ENV !== "development") {
-                    process.exit(1);
-                }
+                socket.disconnect(true); // Force disconnect the offending client
+                return;
             }
             return originalEmit.apply(socket, [event, ...args]);
         };
@@ -150,6 +149,10 @@ export function setupWebSocket(httpServer: HttpServer) {
                 log(`[Socket Auth] Connection rejected: Invalid token for socket ${socket.id}`, "socket.io");
                 return next(new Error("Authentication error: invalid token"));
             }
+        } catch (err) {
+            log(`[Socket Auth] Connection rejected: Internal error for socket ${socket.id}`, "socket.io");
+            return next(new Error("Authentication error: internal error"));
+        }
     });
 
     const emitSyncState = (socket: Socket, roomCode: string, gameState: RoomState) => {

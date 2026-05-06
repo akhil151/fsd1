@@ -12,8 +12,8 @@ export const socket = io(SOCKET_URL, {
     // a connect_error → retry loop on every page load.
     autoConnect: false,
     withCredentials: true,
-    auth: {
-        token: undefined, // will be set by AuthContext after login
+    auth: (cb) => {
+        cb({ token: getAuthToken() });
     },
     timeout: 10000,
     // Limit reconnection attempts to prevent infinite retry loops.
@@ -28,7 +28,14 @@ socket.on("connect", () => {
 });
 
 socket.on("connect_error", (error) => {
-    console.warn("[Socket] Connection error:", error.message);
+    // Suppress noisy auth errors in console if they are expected during transition/logout
+    if (error.message.includes("Authentication")) {
+        console.log("[Socket] Auth pending or failed. Waiting for valid session...");
+        socket.disconnect(); // Stop retrying on auth errors to avoid console flood
+    } else {
+        console.warn("[Socket] Connection error:", error.message);
+    }
+    
     // Clear potentially stale room data on authentication errors
     if (error.message.includes("Authentication")) {
         localStorage.removeItem("currentRoom");
