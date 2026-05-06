@@ -62,13 +62,31 @@ export function setupWebSocket(httpServer: HttpServer) {
         "http://localhost:5000",
         "http://127.0.0.1:5000",
         "http://localhost:3000",
-        "http://127.0.0.1:3001",
-        ...(process.env.CLIENT_ORIGIN ? [process.env.CLIENT_ORIGIN] : []),
+        "http://127.0.0.1:3000",
     ];
+
+    if (process.env.CLIENT_ORIGIN) {
+        const origins = process.env.CLIENT_ORIGIN.split(",").map(o => o.trim());
+        allowedOrigins.push(...origins);
+    }
 
     const io = new Server(httpServer, {
         cors: {
-            origin: allowedOrigins,
+            origin: (origin, callback) => {
+                if (!origin) return callback(null, true);
+                const isAllowed = allowedOrigins.some(allowed => {
+                    if (allowed.includes("*")) {
+                        const regex = new RegExp("^" + allowed.replace(/\*/g, ".*") + "$");
+                        return regex.test(origin);
+                    }
+                    return allowed === origin;
+                });
+                if (isAllowed || process.env.NODE_ENV === "development") {
+                    callback(null, true);
+                } else {
+                    callback(new Error("Not allowed by CORS"));
+                }
+            },
             methods: ["GET", "POST"],
             credentials: true,
         },
