@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Trophy, ArrowLeft, Home } from "lucide-react";
+import { Trophy, ArrowLeft, Home, Zap, Target, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 
@@ -20,9 +20,6 @@ export default function PostMatchStudent() {
   const stored = localStorage.getItem("lastMatchResult");
   const data: StoredMatchSummary | null = stored ? JSON.parse(stored) : null;
 
-  // Read player identity from localStorage — persisted by arena.tsx before navigating away.
-  // Using window.quizSocketId is unreliable: the property is lost when the arena
-  // component unmounts during React page navigation.
   const playerId = localStorage.getItem("quiz_arena_player_id") || "";
 
   const { rank, score, totalPlayers } = useMemo(() => {
@@ -52,133 +49,140 @@ export default function PostMatchStudent() {
     setLocation("/");
   };
 
+  if (!data) {
+    return (
+      <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center bg-[#020205] p-6">
+        <div className="absolute inset-0 grid-bg z-0 pointer-events-none opacity-40" />
+        <div className="relative z-10 glass-panel rounded-2xl p-12 text-center max-w-xl w-full border border-white/5 shadow-2xl bg-background/60">
+          <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 mx-auto mb-8">
+            <Zap className="w-8 h-8 text-white/20" />
+          </div>
+          <h1 className="text-3xl font-display font-black text-white mb-4 uppercase tracking-widest">No Results Found</h1>
+          <p className="text-xs text-muted-foreground mb-10">Match data is currently unavailable for this session.</p>
+          <Button onClick={() => setLocation("/")} variant="neon" className="w-full h-14 rounded-xl text-sm">Return to Menu</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-6 py-10">
-      <div className="absolute inset-0 grid-bg z-0 pointer-events-none" />
-      <div className="absolute top-0 left-1/3 w-[420px] h-[420px] bg-secondary/30 rounded-full blur-[180px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[420px] h-[420px] bg-primary/30 rounded-full blur-[180px] pointer-events-none" />
+    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center bg-[#020205] px-6 py-12">
+      {/* Background */}
+      <div className="absolute inset-0 grid-bg z-0 pointer-events-none opacity-40" />
+      <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-secondary/10 rounded-full blur-[150px] pointer-events-none" />
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.8, rotateX: -30 }}
-        animate={{ opacity: 1, scale: 1, rotateX: 0 }}
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="relative z-10 glass-panel rounded-3xl border border-white/15 px-10 py-12 max-w-3xl w-full text-center overflow-hidden"
+        className="relative z-10 glass-panel rounded-[2.5rem] border border-white/5 px-10 py-12 max-w-2xl w-full text-center overflow-hidden bg-background/40 shadow-2xl"
       >
-        <motion.div
-          className="absolute -top-40 -right-32 w-96 h-96 rounded-full bg-gradient-to-br from-secondary/40 via-accent/40 to-primary/40 blur-3xl opacity-60"
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 0.7, scale: 1 }}
-          transition={{ duration: 1.2 }}
-        />
-
-        <motion.div
-          initial={{ y: 40, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="relative z-10 flex flex-col items-center gap-6"
-        >
-          <div className="flex items-center gap-4">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-secondary via-accent to-primary" />
+        
+        <div className="relative z-10 flex flex-col items-center gap-8">
+          <div className="flex flex-col items-center gap-4">
             <motion.div
-              animate={{ rotate: [0, -6, 6, 0] }}
-              transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-              className="w-20 h-20 rounded-full bg-black/60 border border-secondary/70 flex items-center justify-center shadow-[0_0_35px_rgba(0,255,255,0.5)]"
+              animate={{ y: [0, -8, 0] }}
+              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+              className="w-20 h-20 rounded-2xl bg-background/80 border border-secondary/40 flex items-center justify-center shadow-2xl"
             >
-              <Trophy className="w-10 h-10 text-secondary" />
+              {isWinner ? (
+                <Trophy className="w-10 h-10 text-secondary" />
+              ) : (
+                <Award className="w-10 h-10 text-primary" />
+              )}
             </motion.div>
-            <div className="text-left">
-              <p className="text-xs uppercase tracking-[0.35em] text-secondary font-display font-semibold">
-                Match Complete
+            <div>
+              <p className="text-[9px] uppercase tracking-[0.4em] text-secondary font-black mb-2 opacity-60">
+                Quiz Session Complete
               </p>
-              <h1 className="text-4xl md:text-5xl font-display font-black text-white">
-                {isWinner ? "VICTORY" : "DEFEAT"}
+              <h1 className="text-5xl md:text-7xl font-display font-black text-white leading-none tracking-tighter uppercase">
+                {isWinner ? "Winner" : "Results"}
               </h1>
             </div>
           </div>
 
-          <p className="text-sm md:text-base text-muted-foreground max-w-xl">
+          <p className="text-sm text-muted-foreground max-w-md font-medium leading-relaxed">
             {isWinner
-              ? "You stood at the top of the Neon Quiz Arena. Well played."
-              : "The arena falls silent, but the battle made you stronger. Analyze, adapt, and return."}
+              ? "Excellent work! You've achieved the top rank in this session."
+              : "Session completed. Your performance data has been updated in your profile."}
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className="glass-panel rounded-2xl border border-white/10 px-6 py-5 text-left"
+              className="glass-panel rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-center hover:border-white/20 transition-colors"
             >
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground font-display mb-2">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-3 opacity-60">
                 Final Rank
               </p>
-              <p className="text-3xl md:text-4xl font-display font-black text-secondary">
-                {rank > 0 ? `#${rank}` : "-"}
+              <p className="text-3xl md:text-4xl font-display font-black text-secondary leading-none">
+                {rank > 0 ? `${rank}` : "-"}
               </p>
-              {totalPlayers > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Out of {totalPlayers} combatants
-                </p>
-              )}
+              <div className="mt-3 h-0.5 w-10 bg-secondary/20 mx-auto rounded-full" />
             </motion.div>
 
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="glass-panel rounded-2xl border border-white/10 px-6 py-5 text-left"
+              className="glass-panel rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-center hover:border-white/20 transition-colors"
             >
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground font-display mb-2">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-3 opacity-60">
                 Total Score
               </p>
-              <p className="text-3xl md:text-4xl font-display font-black text-white">
+              <p className="text-3xl md:text-4xl font-display font-black text-white leading-none">
                 {score.toLocaleString()}
               </p>
+              <div className="mt-3 h-0.5 w-10 bg-white/10 mx-auto rounded-full" />
             </motion.div>
 
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="glass-panel rounded-2xl border border-white/10 px-6 py-5 text-left"
+              className="glass-panel rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-center hover:border-white/20 transition-colors"
             >
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground font-display mb-2">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-3 opacity-60">
                 Accuracy
               </p>
-              <p className="text-3xl md:text-4xl font-display font-black text-primary">
+              <p className="text-3xl md:text-4xl font-display font-black text-primary leading-none">
                 {accuracy}%
               </p>
-              {totalQuestions > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {correctCount}/{totalQuestions} correct
-                </p>
-              )}
+              <div className="mt-3 h-0.5 w-10 bg-primary/20 mx-auto rounded-full" />
             </motion.div>
           </div>
 
-          <Button
-            onClick={handleReturnHome}
-            className="mt-6 h-14 rounded-xl bg-gradient-to-r from-primary via-accent to-secondary text-white font-display uppercase tracking-[0.3em] text-sm md:text-base px-10 hover:shadow-[0_0_35px_rgba(255,0,128,0.6)] flex items-center gap-2"
-          >
-            <Home className="w-4 h-4" />
-            Return to Home
-          </Button>
+          <div className="w-full space-y-3">
+            <Button
+              onClick={handleReturnHome}
+              className="w-full h-16 rounded-xl bg-white text-black hover:bg-white/90 font-display uppercase tracking-[0.2em] font-black text-xs relative overflow-hidden group transition-all duration-500 shadow-2xl"
+            >
+              <span className="relative z-10 flex items-center justify-center gap-2.5">
+                <Home className="w-4 h-4" />
+                Return to Dashboard
+              </span>
+              <div className="absolute inset-0 bg-gradient-to-r from-secondary/10 via-transparent to-primary/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </Button>
 
-          <button
-            onClick={() => {
-              // Clean up stale match data before queuing for a new match
-              // so the post-match screen doesn't show a previous game's results.
-              localStorage.removeItem("lastMatchResult");
-              localStorage.removeItem("quiz_arena_player_id");
-              localStorage.removeItem("currentQuizCorrectCount");
-              localStorage.removeItem("currentQuizQuestionCount");
-              setLocation("/join");
-            }}
-            className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-secondary transition-colors uppercase tracking-[0.25em]"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            Queue for another match
-          </button>
-        </motion.div>
+            <button
+              onClick={() => {
+                localStorage.removeItem("lastMatchResult");
+                localStorage.removeItem("quiz_arena_player_id");
+                localStorage.removeItem("currentQuizCorrectCount");
+                localStorage.removeItem("currentQuizQuestionCount");
+                setLocation("/join");
+              }}
+              className="text-[9px] text-muted-foreground hover:text-secondary transition-colors uppercase tracking-[0.3em] font-black flex items-center justify-center gap-2.5 w-full py-3 group"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+              Join New Session
+            </button>
+          </div>
+        </div>
       </motion.div>
     </div>
   );

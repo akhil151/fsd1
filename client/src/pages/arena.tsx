@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Timer, ArrowLeft } from "lucide-react";
+import { Trophy, Timer, ArrowLeft, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { socket } from "@/lib/socket";
 import { useLocation } from "wouter";
@@ -20,9 +20,9 @@ interface LeaderboardEntry {
 
 const QUESTION_TIME_SECONDS = 15;
 
-export default function Arena() {
-  const [location, setLocation] = useLocation();
-  const roomCode = localStorage.getItem("currentRoom") || "UNKNOWN";
+export default function Arena({ params }: { params: { roomCode: string } }) {
+  const [, setLocation] = useLocation();
+  const roomCode = params.roomCode || localStorage.getItem("currentRoom") || "UNKNOWN";
   const { user } = useAuth();
 
   const [question, setQuestion] = useState<QuestionData | null>(null);
@@ -195,71 +195,76 @@ export default function Arena() {
   (window as any).quizSocketId = playerId;
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col">
+    <div className="min-h-screen relative overflow-hidden flex flex-col bg-[#020205]">
       {/* Background */}
-      <div className="absolute inset-0 grid-bg z-0 pointer-events-none" />
-      <div className="absolute top-1/4 right-0 w-96 h-96 bg-primary/20 rounded-full blur-[120px] pointer-events-none animate-pulse" />
-      <div className="absolute bottom-1/3 left-0 w-96 h-96 bg-secondary/20 rounded-full blur-[120px] pointer-events-none animate-pulse" style={{ animationDelay: "0.8s" }} />
+      <div className="absolute inset-0 grid-bg z-0 pointer-events-none opacity-40" />
+      <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[150px] pointer-events-none animate-pulse" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-secondary/10 rounded-full blur-[150px] pointer-events-none animate-pulse" style={{ animationDelay: "0.8s" }} />
 
       {/* Header */}
-      <div className="relative z-10 px-6 md:px-10 py-6 border-b border-white/10 backdrop-blur-sm bg-background/60 flex justify-between items-center">
+      <div className="relative z-10 px-6 py-5 border-b border-white/5 backdrop-blur-md bg-background/40 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl md:text-3xl font-display font-black text-white">THE ARENA</h1>
-          <p className="text-xs md:text-sm text-secondary uppercase tracking-widest font-semibold mt-1">
-            Room: {roomCode}
+          <div className="flex items-center gap-2 mb-0.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            <h1 className="text-xl font-display font-black text-white uppercase tracking-widest">The Arena</h1>
+          </div>
+          <p className="text-[9px] text-secondary uppercase tracking-[0.3em] font-black opacity-60">
+            Room Code: {roomCode}
           </p>
         </div>
 
         <Button
-          variant="outline"
+          variant="ghost"
           onClick={handleExitArena}
-          className="flex items-center gap-2 border-white/20 hover:border-white/60 text-muted-foreground hover:text-white"
+          className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-white border border-white/5 hover:bg-white/5 px-3.5 h-9 rounded-xl"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Leave Match
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Exit Session
         </Button>
       </div>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-10">
-        <div className="w-full max-w-4xl space-y-10">
-          {/* Neon Timer Bar */}
-          <div className="w-full">
-            <div className="h-3 w-full bg-white/10 rounded-full overflow-hidden">
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-4xl mx-auto w-full">
+        <div className="w-full space-y-8">
+          {/* Progress Bar */}
+          <div className="w-full glass-panel p-5 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-0.5 bg-white/5" />
+            <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 p-0.5">
               <motion.div
-                className="h-full bg-gradient-to-r from-secondary via-accent to-primary shadow-[0_0_25px_rgba(0,255,255,0.8)]"
+                className="h-full bg-gradient-to-r from-secondary via-accent to-primary rounded-full shadow-[0_0_15px_rgba(0,255,255,0.4)]"
                 animate={{ width: `${progressPercent}%` }}
                 transition={{ ease: "linear", duration: 0.3 }}
               />
             </div>
-            <div className="mt-3 flex items-center justify-between text-xs md:text-sm text-muted-foreground uppercase tracking-[0.2em] font-display">
-              <span className="flex items-center gap-2">
-                <Timer className="w-4 h-4 text-secondary" />
-                Time Remaining
-              </span>
-              <span className="font-semibold text-white" style={{ fontVariantNumeric: "tabular-nums" }}>
-                {String(Math.max(0, timeLeft)).padStart(2, "0")}s
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Timer className="w-3.5 h-3.5 text-secondary opacity-60" />
+                <span className="text-[9px] text-muted-foreground uppercase tracking-[0.3em] font-black">Time Remaining</span>
+              </div>
+              <span className="text-lg font-display font-black text-white tracking-widest" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {String(Math.max(0, timeLeft)).padStart(2, "0")}<span className="text-[10px] text-muted-foreground ml-1">SEC</span>
               </span>
             </div>
           </div>
 
           {/* Question */}
-          <div className="glass-panel relative rounded-3xl p-8 md:p-10 border border-white/10 overflow-hidden">
+          <div className="glass-panel relative rounded-2xl p-10 md:p-12 border border-white/5 overflow-hidden shadow-2xl">
+            <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/5 rounded-full blur-[100px]" />
             {!isTimeUp && (
-              <div className="absolute inset-0 bg-primary/10 opacity-40 animate-pulse pointer-events-none" />
+              <div className="absolute inset-0 bg-primary/[0.01] animate-pulse pointer-events-none" />
             )}
             <div className="relative z-10">
-              <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-secondary font-display font-semibold mb-4">
-                Question
+              <p className="text-[9px] uppercase tracking-[0.4em] text-secondary font-black mb-4 opacity-60">
+                Current Question
               </p>
-              <h2 className="text-3xl md:text-5xl font-display font-black leading-tight text-white">
-                {question?.text || "Awaiting the first challenge..."}
+              <h2 className="text-3xl md:text-5xl font-display font-black leading-tight text-white tracking-tighter uppercase">
+                {question?.text || "Synchronizing session..."}
               </h2>
             </div>
           </div>
 
           {/* Answers */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {question?.options?.map((opt, index) => {
               const isSelected = selectedIndex === index;
               const isCorrect =
@@ -268,37 +273,44 @@ export default function Arena() {
               return (
                 <motion.button
                   key={index}
-                  whileHover={!isLocked && !isTimeUp ? { scale: 1.02 } : undefined}
-                  whileTap={!isLocked && !isTimeUp ? { scale: 0.98 } : undefined}
+                  whileHover={!isLocked && !isTimeUp ? { scale: 1.01, y: -2 } : undefined}
+                  whileTap={!isLocked && !isTimeUp ? { scale: 0.99 } : undefined}
                   onClick={() => handleAnswerClick(index)}
                   disabled={isLocked || isTimeUp}
-                  className={`relative overflow-hidden rounded-2xl border px-5 py-6 md:px-6 md:py-8 text-left transition-all group ${
+                  className={`relative overflow-hidden rounded-xl border p-6 text-left transition-all duration-500 group ${
                     isSelected
-                      ? "border-secondary bg-secondary/20 shadow-[0_0_25px_rgba(0,255,255,0.5)]"
-                      : "border-white/15 bg-black/30 hover:border-secondary/60 hover:bg-secondary/10"
+                      ? "border-secondary bg-secondary/10 shadow-2xl"
+                      : "border-white/5 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]"
                   }`}
                 >
-                  <div className="relative z-10 space-y-2">
-                    <div className="text-xs uppercase font-display tracking-[0.3em] text-muted-foreground">
-                      Option {String.fromCharCode(65 + index)}
+                  <div className="relative z-10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[9px] uppercase font-black tracking-[0.3em] text-muted-foreground opacity-40 group-hover:opacity-100 transition-opacity">
+                        Option {String.fromCharCode(65 + index)}
+                      </div>
+                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />}
                     </div>
-                    <div className="text-lg md:text-xl font-display font-bold text-white">
+                    <div className="text-lg md:text-xl font-display font-black text-white group-hover:text-secondary transition-colors leading-tight uppercase">
                       {opt}
                     </div>
                   </div>
 
                   {/* Locked overlay */}
                   {isLocked && isSelected && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/5 backdrop-blur-md border border-secondary/70 shadow-[0_0_35px_rgba(0,255,255,0.7)]">
-                      <div className="px-4 py-2 rounded-full border border-secondary/80 bg-black/60 text-secondary font-display text-xs md:text-sm uppercase tracking-[0.25em]">
-                        Locked In
-                      </div>
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-md border border-secondary/40">
+                      <motion.div 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="px-4 py-2 rounded-xl border border-secondary/50 bg-secondary/10 text-secondary font-display text-[9px] font-black uppercase tracking-[0.3em] shadow-2xl"
+                      >
+                        Answer Submitted
+                      </motion.div>
                     </div>
                   )}
 
                   {/* Reveal correct answer highlight when leaderboard shows */}
                   {showLeaderboard && isCorrect && (
-                    <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-br from-secondary/30 via-transparent to-accent/30 mix-blend-screen" />
+                    <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-br from-secondary/10 via-transparent to-accent/10 animate-pulse" />
                   )}
                 </motion.button>
               );
@@ -313,36 +325,38 @@ export default function Arena() {
               initial={{ y: "100%", opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "100%", opacity: 0 }}
-              transition={{ type: "spring", stiffness: 120, damping: 20 }}
-              className="fixed bottom-0 left-0 right-0 z-20 px-4 pb-6 pt-4 md:px-8 md:pb-8"
+              transition={{ type: "spring", stiffness: 100, damping: 20 }}
+              className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4"
             >
-              <div className="max-w-3xl mx-auto glass-panel rounded-3xl border border-secondary/50 bg-background/90 overflow-hidden">
-                <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Trophy className="w-6 h-6 text-secondary" />
+              <div className="max-w-3xl mx-auto glass-panel rounded-2xl border border-white/10 bg-background/95 shadow-[0_-20px_80px_rgba(0,0,0,0.8)] overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-secondary via-accent to-primary" />
+                
+                <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center border border-secondary/30">
+                      <Trophy className="w-5 h-5 text-secondary" />
+                    </div>
                     <div>
-                      <p className="text-xs uppercase tracking-[0.35em] text-secondary font-display font-semibold">
-                        {isFinished ? "Final Standings" : "Round Standings"}
-                      </p>
-                      {!isFinished && (
-                        <p className="text-xs text-muted-foreground">
-                          Next question will begin when your host advances.
+                      <p className="text-[9px] uppercase tracking-[0.4em] text-secondary font-black mb-1">
+                          {isFinished ? "Final Rankings" : "Session Leaderboard"}
                         </p>
-                      )}
+                        <p className="text-xs text-muted-foreground font-medium">
+                          {!isFinished ? "Prepare for the next question." : "Redirecting to final results..."}
+                        </p>
                     </div>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-muted-foreground hover:text-white"
+                    className="text-muted-foreground hover:text-white rounded-full h-8 w-8 border border-white/5"
                     onClick={() => setShowLeaderboard(false)}
                   >
                     ✕
                   </Button>
                 </div>
 
-                <div className="px-6 py-4 max-h-72 overflow-y-auto custom-scrollbar">
-                  <div className="space-y-2">
+                <div className="px-8 py-6 max-h-[350px] overflow-y-auto custom-scrollbar">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {leaderboard.map((entry, idx) => {
                       const isYou = playerId && entry.id === playerId;
                       return (
@@ -351,24 +365,27 @@ export default function Arena() {
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: idx * 0.05 }}
-                          className={`flex items-center justify-between rounded-2xl px-4 py-3 ${
-                            isYou ? "bg-secondary/20 border border-secondary/70" : "bg-white/5 border border-white/10"
+                          className={`flex items-center justify-between rounded-xl px-5 py-4 transition-all ${
+                            isYou 
+                              ? "bg-secondary/10 border border-secondary/40 shadow-xl scale-[1.01]" 
+                              : "bg-white/[0.03] border border-white/5"
                           }`}
                         >
                           <div className="flex items-center gap-4">
-                            <div className="w-8 text-center font-display font-black text-lg text-secondary">
-                              #{idx + 1}
+                            <div className="w-6 text-center font-display font-black text-xl text-secondary">
+                              {idx + 1}
                             </div>
                             <div>
-                              <div className="text-sm md:text-base font-display font-semibold text-white">
+                              <div className="text-sm font-display font-black text-white uppercase tracking-wider flex items-center gap-2">
                                 {entry.name}
-                                {isYou && <span className="ml-2 text-xs uppercase text-secondary/80">You</span>}
+                                {isYou && <span className="px-1.5 py-0.5 rounded-full bg-secondary/20 text-[7px] text-secondary border border-secondary/30">YOU</span>}
                               </div>
-                              <div className="text-xs text-muted-foreground">
-                                {entry.score.toLocaleString()} pts
+                              <div className="text-[9px] text-muted-foreground uppercase font-black tracking-widest mt-0.5 opacity-60">
+                                {entry.score.toLocaleString()} Points
                               </div>
                             </div>
                           </div>
+                          {idx === 0 && <Star className="w-4 h-4 text-yellow-400 fill-current animate-pulse" />}
                         </motion.div>
                       );
                     })}

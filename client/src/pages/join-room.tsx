@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { socket } from "@/lib/socket";
@@ -23,7 +23,7 @@ export default function JoinRoom() {
     const handleJoinSuccess = (data: { roomCode: string }) => {
       setJoinError(null);
       localStorage.setItem("currentRoom", data.roomCode);
-      setLocation("/lobby");
+      setLocation(`/lobby/${data.roomCode}`);
     };
 
     // Show a visible error when the server rejects the join request.
@@ -57,105 +57,118 @@ export default function JoinRoom() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center">
+    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center bg-[#020205]">
       {/* Animated Background */}
-      <div className="absolute inset-0 grid-bg z-0 pointer-events-none" />
-      <div className="absolute top-0 left-1/3 w-96 h-96 bg-secondary/30 rounded-full blur-[150px] animate-pulse pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute inset-0 grid-bg z-0 pointer-events-none opacity-40" />
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-secondary/10 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Header with Logout */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6 }}
-        className="absolute top-6 right-6 z-20"
+        className="absolute top-8 right-8 z-20"
       >
         <Button
-          variant="outline"
+          variant="ghost"
           onClick={handleLogout}
-          className="flex items-center gap-2 border-white/20 hover:border-white/50 text-muted-foreground hover:text-white"
+          className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-white border border-white/5 hover:bg-white/5 px-4 h-10 rounded-xl"
           data-testid="btn-logout"
         >
           <LogOut className="w-4 h-4" />
-          Exit
+          Terminate Session
         </Button>
       </motion.div>
 
       {/* Main Content */}
-      <main className="z-10 flex flex-col items-center justify-center max-w-2xl w-full px-6">
+      <main className="z-10 flex flex-col items-center justify-center max-w-2xl w-full px-6 py-20">
 
         {/* Hero Text */}
         <motion.div
-          initial={{ opacity: 0, y: -40 }}
+          initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: "easeOut" }}
           className="text-center mb-16"
         >
-          <h1 className="text-6xl md:text-7xl font-display font-black mb-4 leading-tight">
-            <span className="text-secondary neon-text-secondary">ENTER</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-secondary/30 bg-secondary/5 text-secondary w-fit mb-6 backdrop-blur-md">
+            <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
+            <span className="text-[9px] font-black tracking-[0.2em] uppercase font-display">Neural Link Ready</span>
+          </div>
+          <h1 className="text-6xl md:text-8xl font-display font-black mb-6 leading-[0.85] uppercase tracking-tighter">
+            <span className="text-secondary neon-text-secondary">Enter</span>
             <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">THE ARENA</span>
+            <span className="text-white">The Arena</span>
           </h1>
-          <p className="text-lg text-muted-foreground font-medium max-w-lg mx-auto">
-            Ask your instructor for the room code and prepare to dominate the trivia battle.
+          <p className="text-base text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">
+            Synchronize with your deployment room to begin the evaluation session.
           </p>
         </motion.div>
 
         {/* Code Input Section */}
         <motion.form
           onSubmit={handleJoin}
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, delay: 0.2 }}
           className="w-full max-w-md"
         >
-          <div className="space-y-6">
+          <div className="space-y-8">
             {/* Code Input */}
-            <div className="relative">
-              <div className={`glass-panel rounded-2xl p-8 border-2 transition-all duration-300 ${isHovered
-                  ? "neon-border-secondary border-secondary shadow-[0_0_25px_rgba(0,255,255,0.3)]"
-                  : "border-white/10"
+            <div className="relative group">
+              <div className={`glass-panel rounded-[2.5rem] p-10 border-2 transition-all duration-500 bg-background/60 shadow-2xl ${isHovered || roomCode.length > 0
+                  ? "border-secondary/50 shadow-[0_0_40px_rgba(0,255,255,0.15)]"
+                  : "border-white/5"
                 }`}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
               >
-                <label className="block text-sm uppercase font-display font-bold tracking-widest text-muted-foreground mb-4">
-                  Room Code
-                </label>
+                <div className="text-center mb-8">
+                  <label className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground opacity-60">
+                    Deployment Room Code
+                  </label>
+                </div>
+                
                 <input
                   type="text"
                   maxLength={8}
                   value={roomCode}
                   onChange={(e) => {
                     setRoomCode(e.target.value.toUpperCase());
-                    // Clear any previous error when the user starts typing a new code
                     if (joinError) setJoinError(null);
                   }}
+                  autoFocus
                   placeholder="00000000"
-                  className="w-full bg-transparent text-center text-5xl font-display font-black text-secondary tracking-[0.25em] focus:outline-none placeholder:text-gray-600 neon-text-secondary pr-[0.25em]"
+                  className="w-full bg-transparent text-center text-6xl font-display font-black text-white tracking-[0.2em] focus:outline-none placeholder:text-white/5 uppercase pr-[0.2em]"
                   data-testid="input-room-code"
                 />
 
                 {/* Character count indicators */}
-                <div className="flex gap-2 mt-6 justify-center">
+                <div className="flex gap-2.5 mt-10 justify-center">
                   {Array.from({ length: 8 }).map((_, i) => (
                     <motion.div
                       key={i}
-                      className={`h-1 w-3 rounded-full transition-all ${i < roomCode.length
-                          ? "bg-secondary shadow-[0_0_10px_rgba(0,255,255,0.6)]"
-                          : "bg-white/10"
+                      className={`h-1.5 rounded-full transition-all duration-300 ${i < roomCode.length
+                          ? "w-4 bg-secondary shadow-[0_0_15px_rgba(0,255,255,0.8)]"
+                          : "w-2 bg-white/5"
                         }`}
-                      initial={{ scaleX: 0 }}
-                      animate={{ scaleX: 1 }}
                     />
                   ))}
                 </div>
+                
                 {/* Error Banner */}
-                {joinError && (
-                  <p className="mt-3 text-center text-xs text-destructive font-semibold uppercase tracking-widest animate-pulse">
-                    {joinError}
-                  </p>
-                )}
+                <AnimatePresence>
+                  {joinError && (
+                    <motion.p 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="mt-6 text-center text-[10px] text-primary font-black uppercase tracking-[0.2em] animate-pulse"
+                    >
+                      {joinError}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
 
@@ -167,44 +180,37 @@ export default function JoinRoom() {
               <Button
                 type="submit"
                 disabled={roomCode.length !== 8}
-                className={`w-full h-16 rounded-xl font-display uppercase tracking-widest text-lg font-black group overflow-hidden relative transition-all ${roomCode.length === 8
-                    ? "bg-white text-black hover:shadow-[0_0_25px_rgba(255,255,255,0.4)]"
-                    : "bg-white/30 text-white/50 cursor-not-allowed"
+                className={`w-full h-16 rounded-2xl font-display uppercase tracking-[0.25em] text-sm font-black group overflow-hidden relative transition-all duration-500 ${roomCode.length === 8
+                    ? "bg-white text-black hover:shadow-2xl"
+                    : "bg-white/5 text-white/20 border border-white/5 cursor-not-allowed"
                   }`}
                 data-testid="btn-join-room"
               >
                 <span className="relative z-10 flex items-center justify-center gap-3">
-                  Battle Commence
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+                  Initiate Link
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
                 </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-primary via-secondary to-accent opacity-0 group-hover:opacity-20 transition-opacity" />
+                <div className="absolute inset-0 bg-gradient-to-r from-secondary via-accent to-primary opacity-0 group-hover:opacity-10 transition-opacity" />
               </Button>
             </motion.div>
-
-            {/* Help Text */}
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground font-medium">
-                8-digit code provided by your instructor
-              </p>
-            </div>
           </div>
         </motion.form>
 
         {/* Info Cards */}
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-20 grid grid-cols-3 gap-4 w-full"
+          className="mt-24 grid grid-cols-3 gap-6 w-full max-w-xl"
         >
           {[
-            { title: "Real-Time", desc: "Live competition" },
-            { title: "Ranked", desc: "Global leaderboard" },
-            { title: "Instant", desc: "Results displayed" },
+            { title: "SYNC", desc: "Real-time Telemetry" },
+            { title: "COMPETE", desc: "Neural Ranking" },
+            { title: "EVOLVE", desc: "Instant Analysis" },
           ].map((item, i) => (
-            <div key={i} className="glass-panel rounded-xl p-4 border border-white/10 text-center">
-              <p className="text-sm font-display font-bold text-secondary mb-1">{item.title}</p>
-              <p className="text-xs text-muted-foreground">{item.desc}</p>
+            <div key={i} className="glass-panel rounded-2xl p-5 border border-white/5 text-center flex flex-col justify-center gap-1 hover:border-white/20 transition-colors">
+              <p className="text-[10px] font-black font-display text-secondary tracking-widest uppercase">{item.title}</p>
+              <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight opacity-60">{item.desc}</p>
             </div>
           ))}
         </motion.div>

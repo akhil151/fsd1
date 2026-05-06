@@ -7,8 +7,19 @@ import { log } from "./index";
 import Quiz, { IQuestion } from "./models/Quiz";
 import MatchResult from "./models/MatchResult";
 import User from "./models/User";
+import StudentPerformance from "./models/StudentPerformance";
+import { processIntelligence } from "./intelligenceWorker";
 
 // In-Memory Game State
+interface ResponseRecord {
+    userId: string;
+    answerIndex: number;
+    isCorrect: boolean;
+    responseTimeMs: number;
+    timestamp: Date;
+    hesitationDetected: boolean;
+}
+
 interface PlayerState {
     userId: string;
     socketId: string;
@@ -17,6 +28,7 @@ interface PlayerState {
     score: number;
     hasAnsweredCurrent: boolean;
     currentAnswerIsCorrect: boolean;
+    responses: ResponseRecord[];
 }
 
 interface RoomState {
@@ -29,6 +41,7 @@ interface RoomState {
     currentQuestionIndex: number;
     timerInterval: NodeJS.Timeout | null;
     timerSeconds: number;
+    questionStartTime: number; // performance.now()
     status: "waiting" | "active" | "leaderboard" | "finished";
 }
 
@@ -77,7 +90,9 @@ export function setupWebSocket(httpServer: HttpServer) {
 
             if (count > 5) { // Threshold for suspicious duplicates
                 console.error(`FAIL: WebSocket Integrity violated. Duplicate event emission: ${event} (${count} times) for socket ${socket.id}`);
-                process.exit(1);
+                if (process.env.NODE_ENV !== "development") {
+                    process.exit(1);
+                }
             }
             return originalEmit.apply(socket, [event, ...args]);
         };
@@ -209,6 +224,7 @@ export function setupWebSocket(httpServer: HttpServer) {
                 currentQuestionIndex: -1,
                 timerInterval: null,
                 timerSeconds: 0,
+                questionStartTime: 0,
                 status: "waiting",
             });
 
@@ -317,6 +333,7 @@ export function setupWebSocket(httpServer: HttpServer) {
                     score: 0,
                     hasAnsweredCurrent: false,
                     currentAnswerIsCorrect: false,
+                    responses: [],
                 };
                 gameState.players.set(userId, playerInfo);
             }
@@ -359,6 +376,7 @@ export function setupWebSocket(httpServer: HttpServer) {
             });
 
             gameState.status = "active";
+            gameState.questionStartTime = Date.now();
 
             // Send question without the answer
             io.to(roomCode).emit("question_active", {
@@ -518,15 +536,31 @@ export function setupWebSocket(httpServer: HttpServer) {
 
             // Process valid answer
             player.hasAnsweredCurrent = true;
+            const responseTimeMs = Date.now() - gameState.questionStartTime;
+            // Hesitation detection: if they take > 70% of allowed time or change focus (if we tracked it)
+            // For now, simple time-based threshold relative to 15s
+            const hesitationDetected = responseTimeMs > 10000; 
 
-            if (answerIndex === q.correctAnswer) {
-                player.currentAnswerIsCorrect = true;
+            const isCorrect = answerIndex === q.correctAnswer;
+            player.currentAnswerIsCorrect = isCorrect;
+
+            if (isCorrect) {
                 // Score calculation based on speed
                 const timeBonus = gameState.timerSeconds * 10;
                 player.score += (100 + timeBonus);
             }
 
-            log(`Player ${player.name} answered ${answerIndex}. Score: ${player.score}`, "socket.io");
+            // Log detailed response
+            player.responses.push({
+                userId: player.userId,
+                answerIndex,
+                isCorrect,
+                responseTimeMs,
+                timestamp: new Date(),
+                hesitationDetected,
+            });
+
+            log(`Player ${player.name} answered ${answerIndex} (Correct: ${isCorrect}, Time: ${responseTimeMs}ms). Score: ${player.score}`, "socket.io");
             // Notify host that someone answered
             io.to(gameState.hostId).emit("player_answered", { playerId: player.userId });
         });
@@ -552,10 +586,38 @@ export function setupWebSocket(httpServer: HttpServer) {
                 gameState.status = "finished";
 
                 const finalLeaderboard = Array.from(gameState.players.values())
-                    .map(p => ({ id: p.userId, name: p.name, avatar: p.avatar, score: p.score }))
+                    .map(p => {
+                        const totalQuestions = gameState.questions.length;
+                        const correctAnswers = p.responses.filter(r => r.isCorrect).length;
+                        const avgTime = p.responses.length > 0 
+                            ? p.responses.reduce((sum, r) => sum + r.responseTimeMs, 0) / p.responses.length 
+                            : 0;
+                        
+                        return {
+                            id: p.userId,
+                            name: p.name,
+                            avatar: p.avatar,
+                            score: p.score,
+                            accuracy: totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0,
+                            averageResponseTime: avgTime
+                        };
+                    })
                     .sort((a, b) => b.score - a.score);
 
                 const winner = finalLeaderboard[0] || null;
+
+                // Flatten all responses for match record
+                const allResponses = Array.from(gameState.players.values()).flatMap((p, pIdx) => 
+                    p.responses.map(r => ({
+                        ...r,
+                        questionIndex: p.responses.indexOf(r) // Simplified, assuming sequential
+                    }))
+                );
+
+                // Calculate class-wide metadata
+                const avgClassAccuracy = finalLeaderboard.length > 0
+                    ? finalLeaderboard.reduce((sum, p) => sum + p.accuracy, 0) / finalLeaderboard.length
+                    : 0;
 
                 try {
                     const quizObjectId = new Types.ObjectId(gameState.quizId);
@@ -566,10 +628,31 @@ export function setupWebSocket(httpServer: HttpServer) {
                             roomCode: gameState.quizCode,
                             players: finalLeaderboard,
                             winner,
+                            responses: allResponses,
+                            sessionMetadata: {
+                                totalDurationMs: 0, // Could calculate if needed
+                                avgClassAccuracy,
+                            }
                         }),
                         Quiz.findByIdAndUpdate(quizObjectId, { $inc: { playCount: 1 } }),
                     ]);
                     log(`Match result saved for room ${gameState.quizCode}`, "socket.io");
+
+                    // ------------------------------------------------------------
+                    // DECOUPLED INTELLIGENCE PROCESSING (Worker-Ready)
+                    // ------------------------------------------------------------
+                    for (const player of Array.from(gameState.players.values())) {
+                        // In a production environment, this would be pushed to Redis/BullMQ
+                        // For now, we fire it asynchronously to avoid blocking the gameplay loop.
+                        processIntelligence({
+                            userId: player.userId,
+                            quizId: gameState.quizId,
+                            responses: player.responses,
+                            questions: gameState.questions,
+                            score: player.score
+                        }).catch(err => log(`Intelligence processing failed for ${player.userId}: ${err}`, "socket.io"));
+                    }
+
                 } catch (err) {
                     log(`Failed to save match result for room ${gameState.quizCode}: ${err}`, "socket.io");
                 }

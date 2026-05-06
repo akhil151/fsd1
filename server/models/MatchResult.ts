@@ -1,10 +1,22 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
 
+interface IResponseRecord {
+    questionIndex: number;
+    userId: string;
+    answerIndex: number;
+    isCorrect: boolean;
+    responseTimeMs: number;
+    timestamp: Date;
+    hesitationDetected: boolean;
+}
+
 interface IPlayerResult {
     id: string;
     name: string;
     avatar?: string;
     score: number;
+    accuracy: number;
+    averageResponseTime: number;
 }
 
 export interface IMatchResult extends Document {
@@ -12,8 +24,27 @@ export interface IMatchResult extends Document {
     roomCode: string;
     players: IPlayerResult[];
     winner: IPlayerResult | null;
+    responses: IResponseRecord[];
+    sessionMetadata: {
+        totalDurationMs: number;
+        avgClassAccuracy: number;
+        hardestQuestionIndex?: number;
+    };
     createdAt: Date;
 }
+
+const ResponseRecordSchema = new Schema<IResponseRecord>(
+    {
+        questionIndex: { type: Number, required: true },
+        userId: { type: String, required: true },
+        answerIndex: { type: Number, required: true },
+        isCorrect: { type: Boolean, required: true },
+        responseTimeMs: { type: Number, required: true },
+        timestamp: { type: Date, default: Date.now },
+        hesitationDetected: { type: Boolean, default: false },
+    },
+    { _id: false }
+);
 
 const PlayerResultSchema = new Schema<IPlayerResult>(
     {
@@ -21,6 +52,8 @@ const PlayerResultSchema = new Schema<IPlayerResult>(
         name: { type: String, required: true },
         avatar: { type: String },
         score: { type: Number, required: true, default: 0 },
+        accuracy: { type: Number, default: 0 },
+        averageResponseTime: { type: Number, default: 0 },
     },
     { _id: false }
 );
@@ -44,6 +77,15 @@ const MatchResultSchema = new Schema<IMatchResult>(
         winner: {
             type: PlayerResultSchema,
             default: null,
+        },
+        responses: {
+            type: [ResponseRecordSchema],
+            default: [],
+        },
+        sessionMetadata: {
+            totalDurationMs: { type: Number, default: 0 },
+            avgClassAccuracy: { type: Number, default: 0 },
+            hardestQuestionIndex: { type: Number },
         },
     },
     { timestamps: { createdAt: true, updatedAt: false } }

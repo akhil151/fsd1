@@ -5,13 +5,17 @@ export interface IQuestion {
     options: string[];
     correctAnswer: number; // index into options
     difficulty: "easy" | "medium" | "hard" | "beginner" | "intermediate" | "advanced" | "expert";
+    topic?: string;
+    subtopic?: string;
 }
 
 export interface IQuiz extends Document {
     title: string;
+    description?: string;
     creator: Types.ObjectId;
     questions: IQuestion[];
     playCount: number;
+    tags?: string[];
 }
 
 const QuestionSchema = new Schema<IQuestion>({
@@ -40,6 +44,8 @@ const QuestionSchema = new Schema<IQuestion>({
         enum: ["easy", "medium", "hard", "beginner", "intermediate", "advanced", "expert"],
         default: "intermediate",
     },
+    topic: { type: String, trim: true },
+    subtopic: { type: String, trim: true },
 });
 
 const QuizSchema = new Schema<IQuiz>(
@@ -47,6 +53,10 @@ const QuizSchema = new Schema<IQuiz>(
         title: {
             type: String,
             required: [true, "Quiz title is required"],
+            trim: true,
+        },
+        description: {
+            type: String,
             trim: true,
         },
         creator: {
@@ -58,13 +68,12 @@ const QuizSchema = new Schema<IQuiz>(
             type: [QuestionSchema],
             default: [],
         },
-        // Tracks how many times this quiz has been played.
-        // Incremented by the socket server when a match finishes.
         playCount: {
             type: Number,
             default: 0,
             min: 0,
         },
+        tags: [String],
     },
     { timestamps: true }
 );

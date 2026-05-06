@@ -26,6 +26,8 @@ const buttonVariants = cva(
         // @replit no hover, transparent border
         ghost: "border border-transparent",
         link: "text-primary underline-offset-4 hover:underline",
+        neon: "bg-primary/10 text-primary border border-primary/50 shadow-[0_0_15px_rgba(255,0,128,0.3)] hover:bg-primary hover:text-white hover:shadow-[0_0_25px_rgba(255,0,128,0.5)] transition-all duration-300 font-display uppercase tracking-widest",
+        "neon-secondary": "bg-secondary/10 text-secondary border border-secondary/50 shadow-[0_0_15px_rgba(0,255,255,0.3)] hover:bg-secondary hover:text-black hover:shadow-[0_0_25px_rgba(0,255,255,0.5)] transition-all duration-300 font-display uppercase tracking-widest",
       },
       size: {
         // @replit changed sizes

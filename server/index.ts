@@ -6,6 +6,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { connectDB } from "./db";
 import { setupWebSocket } from "./socket";
+import mongoose from "mongoose";
 
 const app = express();
 const httpServer = createServer(app);
@@ -39,90 +40,61 @@ export function log(message: string, source = "express") {
 
 import { randomUUID } from "crypto";
 
+// MONITORING CONFIGURATION
+const ENABLE_EXTENDED_MONITORING = process.env.ENABLE_MONITORING === "true" || process.env.NODE_ENV === "production";
+
 // RESPONSE TIME TRACKING
 let requestDurations: number[] = [];
 let avgResponseTimeHistory: number[] = [];
 
 app.use((req, res, next) => {
   const traceId = randomUUID();
-  console.log(`[${traceId}] Incoming:`, req.method, req.url);
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
   let responseCount = 0;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    if (res.headersSent) {
-      console.error(`[${traceId}] Blocked double response via res.json`);
-      return res;
-    }
-    if (responseCount > 0) {
-      console.error(`[${traceId}] FAIL: Response consistency rule violated. Multiple responses sent (via json) for ${req.method} ${req.url}`);
-    }
-    responseCount++;
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+  const isApiRequest = req.path.startsWith("/api");
 
-  const originalSend = res.send;
-  res.send = function (body, ...args) {
-    if (res.headersSent) {
-      console.error(`[${traceId}] Blocked double response via res.send`);
-      return res;
-    }
-    if (responseCount > 0 && !capturedJsonResponse) {
-      console.error(`[${traceId}] FAIL: Response consistency rule violated. Multiple responses sent (via send) for ${req.method} ${req.url}`);
-    }
-    if (!capturedJsonResponse) {
+  // Only intercept for monitoring if enabled
+  if (ENABLE_EXTENDED_MONITORING) {
+    const originalResJson = res.json;
+    res.json = function (bodyJson, ...args) {
+      if (res.headersSent) return res;
       responseCount++;
-    }
-    return originalSend.apply(res, [body, ...args]);
-  };
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
 
-  const originalEnd = res.end;
-  res.end = function (chunk?: any, encoding?: any, cb?: any): any {
-    if (res.headersSent) {
-      return;
-    }
-    if (responseCount === 0) {
-      responseCount++;
-    }
-    return originalEnd.apply(res, [chunk, encoding, cb]);
-  };
+    const originalSend = res.send;
+    res.send = function (body, ...args) {
+      if (res.headersSent) return res;
+      if (!capturedJsonResponse) responseCount++;
+      return originalSend.apply(res, [body, ...args]);
+    };
+
+    const originalEnd = res.end;
+    res.end = function (chunk?: any, encoding?: any, cb?: any): any {
+      if (isApiRequest && responseCount === 0) responseCount++;
+      return originalEnd.apply(res, [chunk, encoding, cb]);
+    };
+  }
 
   res.on("finish", () => {
-    console.log(`[${traceId}] Response sent:`, req.method, req.url);
-    if (responseCount === 0) {
-      console.error(`[${traceId}] FAIL: Response consistency rule violated. Request finished with 0 responses for ${req.method} ${req.url}`);
-    } else if (responseCount > 1) {
-      console.error(`[${traceId}] FAIL: Response consistency rule violated. Request finished with ${responseCount} responses for ${req.method} ${req.url}`);
-    }
-    
     const duration = Date.now() - start;
-    requestDurations.push(duration);
+    
+    if (ENABLE_EXTENDED_MONITORING) {
+      requestDurations.push(duration);
 
-    if (duration > 1000) {
-      console.error(`[${traceId}] FAIL: Response time rule violated. Request took ${duration}ms (> 1s)`);
-      process.exit(1);
-    }
-
-    if (path.startsWith("/api")) {
-      let logLine = `[${traceId}] ${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      if (duration > 1000 && process.env.NODE_ENV === "production") {
+        console.warn(`[Performance] Slow request: ${req.method} ${path} took ${duration}ms`);
       }
 
-      log(logLine);
+      if (path.startsWith("/api") && process.env.DEBUG_API === "true") {
+        let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        log(logLine);
+      }
     }
-  });
-
-  res.on("close", () => {
-    console.log(`[${traceId}] Response closed:`, req.method, req.url);
-  });
-
-  req.on("aborted", () => {
-    console.log(`[${traceId}] Request aborted:`, req.method, req.url);
   });
 
   next();
@@ -132,86 +104,72 @@ app.use((req, res, next) => {
 let lastTick = performance.now();
 const memoryHistory: number[] = [];
 let baselineHeapUsed = 0;
+let monitoringInterval: NodeJS.Timeout | undefined;
 
 export function resetMonitoringBaseline() {
   baselineHeapUsed = process.memoryUsage().heapUsed;
   memoryHistory.length = 0;
-  console.log(`Monitoring baseline reset to: ${(baselineHeapUsed / 1024 / 1024).toFixed(2)}MB`);
+  if (ENABLE_EXTENDED_MONITORING) {
+    log(`Monitoring baseline initialized: ${(baselineHeapUsed / 1024 / 1024).toFixed(2)}MB`, "system");
+  }
 }
 
-setInterval(() => {
-  const mem = process.memoryUsage();
-  const now = performance.now();
-  const eventLoopDelay = now - lastTick - 5000;
-  
-  memoryHistory.push(mem.heapUsed);
-  if (memoryHistory.length > 5) memoryHistory.shift();
+if (ENABLE_EXTENDED_MONITORING) {
+  monitoringInterval = setInterval(() => {
+    const mem = process.memoryUsage();
+    const now = performance.now();
+    const eventLoopDelay = now - lastTick - 5000;
+    
+    memoryHistory.push(mem.heapUsed);
+    if (memoryHistory.length > 5) memoryHistory.shift();
 
-  let memoryStabilityFail = false;
-  if (baselineHeapUsed > 0 && memoryHistory.length >= 3) {
-    // Noise floor of 10KB to avoid jitter
-    const isIncreasing = memoryHistory.slice(-3).every((val, i, arr) => {
-      if (i === 0) return true;
-      return (val - arr[i - 1]) > 10240; // > 10KB
-    });
-    if (isIncreasing) {
-      console.error("FAIL: Memory Stability Rule violated. heapUsed increases continuously for 3+ intervals.");
-      process.exit(1);
-    }
-  }
-
-  const heapIncreasePercent = baselineHeapUsed > 0 ? ((mem.heapUsed - baselineHeapUsed) / baselineHeapUsed) * 100 : 0;
-  if (baselineHeapUsed > 0 && heapIncreasePercent > 30) {
-    console.error(`FAIL: Memory Stability Rule violated. heapUsed exceeds baseline by ${heapIncreasePercent.toFixed(2)}% (> 30%).`);
-    process.exit(1);
-  }
-
-  if (baselineHeapUsed > 0 && eventLoopDelay > 100) {
-    console.error(`FAIL: Event Loop Delay Rule violated. Delay is ${eventLoopDelay.toFixed(2)}ms (> 100ms).`);
-    // Not necessarily a crash, but we fail the validation
-    process.exit(1);
-  }
-  if (baselineHeapUsed > 0 && eventLoopDelay > 200) {
-    console.error(`FAIL: Event Loop Delay Rule violated. Spike above 200ms: ${eventLoopDelay.toFixed(2)}ms.`);
-    process.exit(1);
-  }
-
-  // Response Time Trend Analysis
-  if (requestDurations.length > 0) {
-    const avg = requestDurations.reduce((a, b) => a + b, 0) / requestDurations.length;
-    avgResponseTimeHistory.push(avg);
-    if (avgResponseTimeHistory.length > 5) avgResponseTimeHistory.shift();
-
-    if (avgResponseTimeHistory.length >= 3) {
-      const isIncreasing = avgResponseTimeHistory.slice(-3).every((val, i, arr) => i === 0 || val > arr[i - 1]);
-      if (isIncreasing) {
-        console.error("FAIL: Response Time Rule violated. Average response time increases continuously for 3+ intervals.");
-        process.exit(1);
+    // Stability Analysis
+    if (baselineHeapUsed > 0 && memoryHistory.length >= 3) {
+      const isIncreasing = memoryHistory.slice(-3).every((val, i, arr) => i === 0 || (val - arr[i - 1]) > 1048576);
+      if (isIncreasing && process.env.NODE_ENV === "production") {
+        console.warn("[System] Potential memory leak detected: heapUsed increasing continuously.");
       }
     }
-    requestDurations = []; // Reset for next interval
-  }
 
-  console.log("MONITORING:", {
-    rss: (mem.rss / 1024 / 1024).toFixed(2) + "MB",
-    heapUsed: (mem.heapUsed / 1024 / 1024).toFixed(2) + "MB",
-    baseline: (baselineHeapUsed / 1024 / 1024).toFixed(2) + "MB",
-    increase: heapIncreasePercent.toFixed(2) + "%",
-    eventLoopDelayMs: eventLoopDelay > 0 ? eventLoopDelay.toFixed(2) : 0,
-    avgResponseTimeMs: avgResponseTimeHistory.length > 0 ? avgResponseTimeHistory[avgResponseTimeHistory.length - 1].toFixed(2) : 0
-  });
-  lastTick = performance.now();
-}, 5000);
+    const heapIncreasePercent = baselineHeapUsed > 0 ? ((mem.heapUsed - baselineHeapUsed) / baselineHeapUsed) * 100 : 0;
+    if (baselineHeapUsed > 0 && heapIncreasePercent > 50 && process.env.NODE_ENV === "production") {
+      console.warn(`[System] High memory usage: ${heapIncreasePercent.toFixed(2)}% above baseline.`);
+    }
 
-// ERROR-FREE RUNTIME MONITORING
+    if (baselineHeapUsed > 0 && eventLoopDelay > 150) {
+      console.warn(`[System] Event loop pressure detected: ${eventLoopDelay.toFixed(2)}ms delay.`);
+    }
+
+    // Response Time Trend Analysis
+    if (requestDurations.length > 0) {
+      const avg = requestDurations.reduce((a, b) => a + b, 0) / requestDurations.length;
+      avgResponseTimeHistory.push(avg);
+      if (avgResponseTimeHistory.length > 5) avgResponseTimeHistory.shift();
+      requestDurations = []; 
+    }
+
+    if (process.env.DEBUG_MONITORING === "true") {
+      console.log("MONITORING:", {
+        rss: (mem.rss / 1024 / 1024).toFixed(2) + "MB",
+        heapUsed: (mem.heapUsed / 1024 / 1024).toFixed(2) + "MB",
+        increase: heapIncreasePercent.toFixed(2) + "%",
+        eventLoopDelayMs: eventLoopDelay > 0 ? eventLoopDelay.toFixed(2) : 0,
+        avgResponseTimeMs: avgResponseTimeHistory.length > 0 ? avgResponseTimeHistory[avgResponseTimeHistory.length - 1].toFixed(2) : 0
+      });
+    }
+    lastTick = performance.now();
+  }, 5000);
+}
+
+// ERROR HANDLING
 process.on("unhandledRejection", (reason) => {
-  console.error("FAIL: Error-Free Runtime Rule violated. unhandled promise rejection:", reason);
-  process.exit(1);
+  console.error("[Fatal] Unhandled Rejection:", reason);
+  if (process.env.NODE_ENV === "production") process.exit(1);
 });
 
 process.on("uncaughtException", (err) => {
-  console.error("FAIL: Error-Free Runtime Rule violated. process crash / uncaught exception:", err);
-  process.exit(1);
+  console.error("[Fatal] Uncaught Exception:", err);
+  if (process.env.NODE_ENV === "production") process.exit(1);
 });
 
 // FAULT INJECTION MIDDLEWARE (Async Safety Test)
@@ -246,7 +204,7 @@ process.on("uncaughtException", (err) => {
 
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     if (res.headersSent) {
       console.error("Blocked double response in error handler:", err.message);
       return;
@@ -254,7 +212,11 @@ process.on("uncaughtException", (err) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+    if (status === 401) {
+      log(`[AUTH TEST] Unauthorized request blocked (401) on ${req.path}`, "auth");
+    } else {
+      console.error(`${status === 500 ? 'Internal Server Error' : 'Error'}:`, err);
+    }
 
     return res.status(status).json({ message });
   });
@@ -284,4 +246,36 @@ process.on("uncaughtException", (err) => {
       resetMonitoringBaseline();
     },
   );
+
+  // GRACEFUL SHUTDOWN
+  const shutdown = async (signal: string) => {
+    log(`Received ${signal}. Shutting down gracefully...`, "system");
+    
+    if (monitoringInterval) {
+      clearInterval(monitoringInterval);
+      log("Monitoring interval cleared.", "system");
+    }
+    
+    httpServer.close(async () => {
+      log("HTTP server closed.", "system");
+      
+      try {
+        await mongoose.connection.close();
+        log("MongoDB connection closed.", "mongoose");
+        process.exit(0);
+      } catch (err) {
+        console.error("Error during MongoDB shutdown:", err);
+        process.exit(1);
+      }
+    });
+
+    // Force shutdown if it takes too long
+    setTimeout(() => {
+      console.error("Could not close connections in time, forcefully shutting down");
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 })();

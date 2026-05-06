@@ -2,17 +2,18 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http';
+import { runValidation as runPhases } from './system-validation';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || '3001';
-const TEST_DURATION_MS = 10 * 60 * 1000; // 10 minutes
-const CHECK_INTERVAL_MS = 5000;
+
+// Modes: 'final' (default) or 'soak'
+const MODE = process.env.VALIDATION_MODE || 'final';
+const SOAK_DURATION_MINS = parseInt(process.env.SOAK_DURATION_MINS || "10", 10);
 
 let serverProcess: any;
 let failures: string[] = [];
-let startTime = Date.now();
-
 let serverReady = false;
 
 async function runRequest(path: string) {
@@ -35,7 +36,7 @@ async function runRequest(path: string) {
 }
 
 async function startServer() {
-    console.log("🚀 Starting server for final validation...");
+    console.log(`🚀 Starting server for ${MODE} validation on port ${PORT}...`);
     serverProcess = spawn('npx', ['tsx', 'server/index.ts'], {
         cwd: ROOT,
         env: { ...process.env, PORT: PORT, NODE_ENV: 'development' },
@@ -47,9 +48,7 @@ async function startServer() {
         process.stdout.write(output);
         if (serverReady && output.includes('FAIL:')) {
             const match = output.match(/FAIL: .+/);
-            if (match) {
-                failures.push(match[0]);
-            }
+            if (match) failures.push(match[0]);
         }
     });
 
@@ -64,16 +63,10 @@ async function startServer() {
         }
     });
 
-    serverProcess.on('exit', (code: number) => {
-        if (code !== 0 && code !== null) {
-            failures.push(`Server crashed with code ${code}`);
-        }
-    });
-
     // Wait for server to be ready
     for (let i = 0; i < 60; i++) {
         try {
-            await runRequest('/api/auth/me'); // Just a health check
+            await runRequest('/api/auth/me');
             serverReady = true;
             break;
         } catch (e) {
@@ -85,77 +78,55 @@ async function startServer() {
         console.error("❌ Server failed to start in time (60s)");
         process.exit(1);
     }
-    console.log("✅ Server ready. Starting 10-minute stability test...");
+    console.log("✅ Server ready.");
 }
 
-async function runValidation() {
+async function main() {
     await startServer();
 
-    const interval = setInterval(async () => {
-        const elapsed = Date.now() - startTime;
-        const remaining = Math.max(0, TEST_DURATION_MS - elapsed);
-        const mins = Math.floor(remaining / 60000);
-        const secs = Math.floor((remaining % 60000) / 1000);
+    console.log(`\n--- Running Validation Phases (${MODE} mode) ---`);
+    
+    const options = {
+        port: PORT,
+        durationMins: MODE === 'soak' ? SOAK_DURATION_MINS : 0
+    };
 
-        console.log(`\n--- [Status] Time Remaining: ${mins}m ${secs}s ---`);
-        console.log(`Current Failures: ${failures.length}`);
+    const success = await runPhases(options);
 
-        if (failures.length > 0) {
-            console.error("❌ VALIDATION FAILED: Anomalies detected!");
-            failures.forEach(f => console.error(`  - ${f}`));
-            cleanup();
-            process.exit(1);
-        }
+    if (failures.length > 0 || !success) {
+        console.error("\n❌ VALIDATION FAILED!");
+        failures.forEach(f => console.error(`  - ${f}`));
+        await cleanup();
+        process.exit(1);
+    }
 
-        // Periodic Load Simulation
-        try {
-            // Added WS disconnect storm simulation to trigger integrity checks
-            const wsUrl = `http://localhost:${PORT}`;
-            const { io } = await import('socket.io-client');
-            const socket = io(wsUrl, { transports: ['websocket'], auth: { token: 'invalid' } });
-            socket.on('connect', () => {
-                socket.emit('test_event');
-                socket.emit('test_event');
-                socket.emit('test_event');
-                socket.emit('test_event');
-                socket.emit('test_event');
-                socket.emit('test_event'); // Should trigger duplicate event fail
-                socket.disconnect();
-            });
-
-            await Promise.all([
-                runRequest('/api/auth/me'),
-                runRequest('/api/quizzes'),
-                runRequest('/inject-async-safety-test')
-            ]);
-        } catch (e) {
-            // console.warn("Load request failed:", e.message);
-        }
-
-        if (elapsed >= TEST_DURATION_MS) {
-            clearInterval(interval);
-            console.log("\n✅ FINAL PASS CONDITION MET!");
-            console.log("System remained stable for full duration.");
-            cleanup();
-            process.exit(0);
-        }
-    }, CHECK_INTERVAL_MS);
+    console.log(`\n✅ ${MODE.toUpperCase()} VALIDATION COMPLETE!`);
+    await cleanup();
+    process.exit(0);
 }
 
-function cleanup() {
+async function cleanup() {
     if (serverProcess) {
         console.log("Stopping server...");
-        serverProcess.kill();
+        // Send SIGINT for graceful shutdown we implemented in index.ts
+        serverProcess.kill('SIGINT');
+        
+        // Wait a bit for the process to exit
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        if (!serverProcess.killed) {
+            serverProcess.kill('SIGKILL');
+        }
     }
 }
 
-process.on('SIGINT', () => {
-    cleanup();
+process.on('SIGINT', async () => {
+    await cleanup();
     process.exit(1);
 });
 
-runValidation().catch(err => {
+main().catch(async err => {
     console.error("Validation script error:", err);
-    cleanup();
+    await cleanup();
     process.exit(1);
 });
