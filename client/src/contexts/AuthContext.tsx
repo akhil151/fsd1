@@ -32,13 +32,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     const data = await apiFetch<{ user: User }>("/auth/me");
                     setUser(data.user);
                     // Restore authenticated socket connection on page refresh
+                    // Always disconnect first to ensure the new token is used for the next handshake
+                    socket.disconnect();
                     (socket as any).auth = { token };
-                    if (socket.disconnected) {
-                        socket.connect();
-                    }
+                    socket.connect();
                 } catch (error) {
                     clearAuthToken();
                     setUser(null);
+                    socket.disconnect();
                 }
             }
             setIsLoading(false);

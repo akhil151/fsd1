@@ -122,28 +122,34 @@ export function setupWebSocket(httpServer: HttpServer) {
                     : undefined);
 
             if (!token) {
+                log(`[Socket Auth] Connection rejected: Missing token from socket ${socket.id}`, "socket.io");
                 return next(new Error("Authentication error: missing token"));
             }
 
             const secret = process.env.JWT_SECRET;
             if (!secret) {
+                log(`[Socket Auth] Fatal: JWT_SECRET not configured on server`, "socket.io");
                 return next(new Error("Authentication error: server misconfigured"));
             }
 
-            const decoded = jwt.verify(token, secret) as { id: string; role: string };
-            const user = await User.findById(decoded.id).select("-password");
+            try {
+                const decoded = jwt.verify(token, secret) as { id: string; role: string };
+                const user = await User.findById(decoded.id).select("-password");
 
-            if (!user) {
-                return next(new Error("Authentication error: user not found"));
+                if (!user) {
+                    log(`[Socket Auth] Connection rejected: User not found for ID ${decoded.id}`, "socket.io");
+                    return next(new Error("Authentication error: user not found"));
+                }
+
+                (socket as any).data = (socket as any).data || {};
+                (socket as any).data.user = user;
+
+                log(`[Socket Auth] User ${user.name} (${user.role}) authenticated successfully`, "socket.io");
+                return next();
+            } catch (verifyErr) {
+                log(`[Socket Auth] Connection rejected: Invalid token for socket ${socket.id}`, "socket.io");
+                return next(new Error("Authentication error: invalid token"));
             }
-
-            (socket as any).data = (socket as any).data || {};
-            (socket as any).data.user = user;
-
-            return next();
-        } catch (err) {
-            return next(new Error("Authentication error: invalid token"));
-        }
     });
 
     const emitSyncState = (socket: Socket, roomCode: string, gameState: RoomState) => {
