@@ -17,3 +17,5 @@ services:
         value: "true"
       - key: DEBUG_API
         value: "false"
+      - key: CLIENT_ORIGIN
+        sync: false # Set this to your Vercel URL after deploying the frontend

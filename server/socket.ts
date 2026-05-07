@@ -70,6 +70,11 @@ export function setupWebSocket(httpServer: HttpServer) {
         allowedOrigins.push(...origins);
     }
 
+    // Include the Render external URL if available
+    if (process.env.RENDER_EXTERNAL_URL) {
+        allowedOrigins.push(process.env.RENDER_EXTERNAL_URL);
+    }
+
     const io = new Server(httpServer, {
         cors: {
             origin: (origin, callback) => {

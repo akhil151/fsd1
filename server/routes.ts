@@ -22,6 +22,11 @@ export async function registerRoutes(
     allowedOrigins.push(...origins);
   }
 
+  // Include the Render external URL if available
+  if (process.env.RENDER_EXTERNAL_URL) {
+    allowedOrigins.push(process.env.RENDER_EXTERNAL_URL);
+  }
+
   app.use(
     cors({
       origin: (origin, callback) => {
