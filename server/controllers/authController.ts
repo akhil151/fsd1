@@ -33,6 +33,7 @@ export const register = async (req: Request, res: Response): Promise<any> => {
 
     const user = await User.create({
         name: displayName,
+        username: username || email, // Satisfy potential unique username index in DB
         email,
         password, // will be hashed by pre-save hook
         role: role === "teacher" ? "teacher" : "student",

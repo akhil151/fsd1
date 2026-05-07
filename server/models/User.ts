@@ -3,6 +3,7 @@ import * as bcrypt from "bcryptjs";
 
 export interface IUser extends Document {
     name: string;
+    username?: string;
     email: string;
     password: string;
     role: "teacher" | "student";
@@ -14,6 +15,11 @@ const UserSchema = new Schema<IUser>(
         name: {
             type: String,
             required: [true, "Name is required"],
+            trim: true,
+        },
+        username: {
+            type: String,
+            sparse: true, // Allow multiple nulls if the index is sparse, but the error suggests it's not.
             trim: true,
         },
         email: {
